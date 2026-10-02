@@ -5,6 +5,7 @@ requires-python = ">=3.13"
 dependencies = [
     "huggingface-hub>=2.1.1",
     "polars>=1.44.2",
+    "streamlit>=1.64.0",
 ]
 
 [dependency-groups]
