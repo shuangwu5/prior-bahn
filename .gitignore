@@ -1,8 +1,9 @@
-data/
 .venv/
+.worktrees/
 __pycache__/
 .ruff_cache/
+.ipynb_checkpoints/
+.DS_Store
 .env
 .env.*
-.DS_Store
-.ipynb_checkpoints/
+data/
