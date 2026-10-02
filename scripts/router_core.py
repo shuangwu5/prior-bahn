@@ -57,7 +57,11 @@ def load_timetable(day: date, path: str = PATH) -> Timetable:
     stops = (
         pl.scan_parquet(path)
         .filter(~pl.col("train_type").str.contains(NON_TRAIN))
-        .with_columns(pl.col("id").str.extract(r"^(.*)-\d+$", 1).alias("run_id"))
+        .with_columns(
+            pl.col("id").str.extract(r"^(.*)-\d+$", 1).alias("run_id"),
+            # a few stations have no name anywhere in the month, keep them by EVA code
+            pl.col("station_name").fill_null("EVA " + pl.col("eva")),
+        )
         .filter(
             pl.coalesce("departure_planned_time", "arrival_planned_time").is_between(
                 day_start - timedelta(hours=12), day_start + timedelta(hours=36)
