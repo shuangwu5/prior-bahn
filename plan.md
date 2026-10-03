@@ -39,12 +39,20 @@ Facts from the September file (14.8M stop events, 5,284 stations):
    - Alternatives: rerun for later departures, keep routes that are not worse on both arrival time and number of transfers.
 3. Delay model
    - For each leg, predict the arrival-delay distribution at the alighting stop and the departure-delay distribution of the connecting train at the transfer station.
-   - Context: a few thousand history rows retrieved per query (same train and station, similar trains at that station, same weekday and hour).
+   - Two models, two calls per request: one for arrival delay, one for departure delay. Cancellation is left out of the first version.
+   - Context: one shared context per request, not per leg. Prediction time is set by the context size, not by the number of rows predicted, so one call answers all legs of all candidate routes.
+   - The context is built from the stations and trains on the candidate routes (at most 5 routes), only from days before the request day:
+     - same train at the same station (closest match)
+     - other trains at those stations around the same hour and weekday
+     - a small general sample for the overall delay shape
+   - Starting point: about 2k context rows, split roughly 40% / 40% / 20% across the three groups. Both the size and the split are settings to tune on the validation week.
+   - Measured on a Mac with local weights (10 query rows): about 5 s per call at 1k context rows, 17 s at 3k, 95 s at 10k. API timing is not measured yet.
 4. Route risk
    - Sample the leg distributions to get the probability of each transfer and the arrival distribution.
    - A missed connection costs a fixed penalty (the next departure on the same line).
 5. Evaluation
-   - Per leg: absolute error and distribution quality (pinball loss).
+   - Sampling unit: a request (start, destination, time), not a random leg. Sample a few hundred real requests from the validation and test weeks. Each request gets its own shared context, built the same way as in the app.
+   - Per leg: absolute error and distribution quality (pinball loss), on the legs of the sampled requests.
    - Per connection: Brier score and a calibration plot, on historical transfer pairs.
    - Per route: predicted probability of an on-time arrival against what actually happened on that day.
    - Baselines: historical frequency per train and station, and a gradient-boosted model.
@@ -65,7 +73,7 @@ Rules:
 - Split by run, not by row. A run belongs to the day it starts.
 - History features are lagged for context rows and query rows alike.
 - All three evaluation levels use the same validation and test days.
-- Evaluate on a sample (a few thousand legs stratified by train type, a few hundred routes) to limit API cost.
+- Evaluate on a sample of a few hundred requests (stratified by train type and hour) to limit API cost.
 
 # Schedule
 - October 3: data prep, router, baselines.
