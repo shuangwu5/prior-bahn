@@ -51,7 +51,7 @@ def load_month(month: str) -> pd.DataFrame:
 
     # rows without a train type are dropped too (about 37k rows, none has a planned time)
     is_train = df["train_type"].notna() & ~df["train_type"].str.contains(
-        NON_TRAIN, case=False
+        NON_TRAIN, case=False, na=False
     )
     has_planned_time = (
         df["arrival_planned_time"].notna() | df["departure_planned_time"].notna()
