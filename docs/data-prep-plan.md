@@ -109,13 +109,57 @@ target.
 | `planned_arr`, `planned_dep` | Existing planned-time columns | Kept as the schedule |
 | `dwell_planned_min` | `planned_dep - planned_arr` | Planned time standing at the stop |
 | `run_planned_min` | Planned time from the previous stop to this one | Planned leg length |
-| `dep_hour`, `dep_weekday`, `is_weekend` | From `planned_dep`, else `planned_arr` | Calendar features |
+| `arr_hour`, `arr_minute`, `dep_hour`, `dep_minute`, `weekday` | Hour and minute of `planned_arr` and of `planned_dep`, and the weekday | Calendar features. Each model uses the hour and minute of its own event. They are missing where the event does not exist (first and last stop). The old `hour` and `is_weekend` are removed. |
 | `stop_idx`, `n_stops`, `stop_frac` | From `train_line_station_num` and the run length | Position in the run. Later stops tend to collect more delay. |
 | `prev_stop_dep_delay` | **Not used.** It is live state (step two in the plan). | Would leak in the planning case |
 | History features | Lagged statistics, see section 7 | Optional. Added only if the validation test shows a gain. |
 
-Categoricals (`train_type`, `station`, `train_key`) stay as strings or integer codes. TabPFN
-handles categoricals, but a station with 5k values needs care (see open questions).
+### Feature lists (decided)
+
+There are two models, so there are two feature lists. Each request builds one shared context (see
+`plan.md`, component 3), so a context holds only the stations and trains of the candidate routes,
+about 10 to 40 stations and not 5k. Because of that, stations and trains can go in as plain
+categories, with no target encoding.
+
+| Column | Arrival model | Departure model | Notes |
+|---|---|---|---|
+| `train_type` | yes | yes | All 110 values kept, no grouping |
+| `station` | yes | yes | Category |
+| `train_key` | yes | yes | Category. Marks rows of the same train |
+| `line_number` | yes | yes | Category, low priority. May identify S-Bahn trains better than the train number (to check) |
+| `weekday` | yes | yes | |
+| `arr_hour`, `arr_minute` | yes | no | Hour and minute of the planned arrival |
+| `dep_hour`, `dep_minute` | no | yes | Hour and minute of the planned departure |
+| `run_planned_min` | yes | yes | Planned length of the leg into this stop |
+| `dwell_planned_min` | no | yes | Planned standing time. Matters for departures only. 15% null (first and last stops) |
+| `stop_num`, `n_stops`, `stop_frac` | yes | yes | Position in the run |
+
+Left out for now: `prev_station`, `final_destination`, `is_weekend`, the raw planned times, and the
+keys and labels (`run_id`, `run_day`, `split`, canceled flags). Both models also train only on rows
+that are not canceled and have a non-null target.
+
+### How the inputs are passed to TabPFN (checked in tabpfn 9.1.0)
+
+- `fit(X, y)` takes a pandas DataFrame. A datetime column is refused with an error by default.
+  The main runs use the explicit hour and minute columns and pass no datetime column.
+- Optional experiment: pass `planned_arr` (arrival model) or `planned_dep` (departure model) with
+  `inference_config={"TRANSFORM_DATES": True}`, and drop the explicit hour and minute columns of
+  that model. TabPFN then builds year, day of year, seconds since the epoch, minute, second, and
+  circular (sin and cos) month, day, hour and weekday. Checked on a toy frame with tabpfn 9.1.0.
+  Year and second would be constant here, and the date parts only extrapolate, so I expect little
+  gain. Not checked: whether the Prior Labs API client supports this setting.
+- TabPFN guesses which columns are categories. An integer column with more than 30 distinct values
+  is read as a number. So `train_type`, `station`, `train_key` and `line_number` must be given as
+  pandas `category` dtype (or listed in `categorical_features_indices`). A column declared this way
+  is a category at any size, so no integer codes are needed.
+- Build each category list from the context rows and the query rows together, so both use the
+  same categories. Behaviour for a query value that is not in the context is not checked yet. Test
+  it early.
+- Output: `predict(X, output_type="quantiles", quantiles=[0.5, 0.8, 0.95])` returns one array per
+  quantile (the values must be Python floats). `output_type="full"` also returns the whole
+  predicted distribution, which the route-risk step needs for sampling.
+- The row and feature limits for v3.5 are only known after loading the model. Our context of about
+  2k rows is far below any limit seen in the package.
 
 ## 7. History features (optional, to be tested)
 
@@ -152,8 +196,8 @@ split by `run_day`.
 
 1. Keep replacement trains in the timetable (the router might use them) or drop them? Proposed: drop.
 2. Merge stations by name, as planned, or by EVA? Proposed: name, as in `plan.md`.
-3. How to feed 5k stations to TabPFN: raw category, target-encoded history, or only history
-   statistics plus coarse geography (state or region)? The dataset has no coordinates.
+3. ~~How to feed 5k stations to TabPFN~~ Decided: raw category, together with `train_key`. The
+   shared per-request context holds only a few dozen stations. See "Feature lists" in section 6.
 4. Runs that started on July 31 appear in the August file. Keep them (they belong to the context pool) or cut at `run_day >= Aug 1`? Proposed: cut by `run_day`.
 5. Is a September-only check enough for the August schema, or do we want a quick equality check of
    schema and filters across both files? Schemas are already identical.
