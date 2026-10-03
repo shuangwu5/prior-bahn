@@ -149,11 +149,16 @@ def build() -> pd.DataFrame:
     out["n_stops"] = out.groupby("run_id")["stop_num"].transform("max")
     out["stop_frac"] = out["stop_num"] / out["n_stops"]
 
-    # calendar features from the planned time (departure, or arrival at the last stop)
+    # calendar features. Hour and minute are taken from the planned time of each
+    # event, since the arrival model and the departure model use different ones.
+    # They are missing where the event does not exist (first and last stop).
+    out["arr_hour"] = out["planned_arr"].dt.hour
+    out["arr_minute"] = out["planned_arr"].dt.minute
+    out["dep_hour"] = out["planned_dep"].dt.hour
+    out["dep_minute"] = out["planned_dep"].dt.minute
+    # weekday from the planned time (departure, or arrival at the last stop)
     planned_time = out["planned_dep"].fillna(out["planned_arr"])
-    out["hour"] = planned_time.dt.hour.astype("uint8")
     out["weekday"] = (planned_time.dt.dayofweek + 1).astype("uint8")  # 1 is Monday
-    out["is_weekend"] = out["weekday"] >= 6
 
     # the split is decided by the day the run starts
     out["split"] = "test"
@@ -182,9 +187,11 @@ def build() -> pd.DataFrame:
             "n_stops",
             "run_planned_min",
             "stop_frac",
-            "hour",
+            "arr_hour",
+            "arr_minute",
+            "dep_hour",
+            "dep_minute",
             "weekday",
-            "is_weekend",
         ]
     ]
 
