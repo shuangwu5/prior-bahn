@@ -7,11 +7,11 @@ import numpy as np
 import polars as pl
 from dotenv import load_dotenv
 
-from delaymodel.features import EVENTS, shared_categories, to_frame, usable_rows
+from dbdelay.model.features import EVENTS, shared_categories, to_frame, usable_rows
 
 VERSION = "v3.5"
 QUANTILES = [0.5, 0.8, 0.95]
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 
 
 def load_token() -> None:

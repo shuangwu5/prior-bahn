@@ -1,7 +1,7 @@
 """Build the transformed `stops` table from the raw monthly files.
 
 Follows docs/data-prep-plan.md: schedule-only columns, no lagged history features.
-Run from the repo root: uv run --no-sync python scripts/prep_data.py
+Run from the repo root: uv run --no-sync python -m dbdelay.data.prep
 """
 
 from pathlib import Path
@@ -14,7 +14,7 @@ MONTHS = ["08", "09"]
 OUT = Path("data/processed/stops.parquet")
 NON_TRAIN = "^(?:bus|sev|bsv)$"  # matched without regard to case
 
-# split by the day a run starts, see plan.md
+# split by the day a run starts, see docs/plan.md
 FIRST_DAY, LAST_DAY = pd.Timestamp("2026-08-01"), pd.Timestamp("2026-09-30")
 VALIDATION_START, TEST_START = pd.Timestamp("2026-09-17"), pd.Timestamp("2026-09-24")
 

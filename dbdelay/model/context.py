@@ -1,4 +1,4 @@
-"""Build the one shared context for a request (plan.md, component 3).
+"""Build the one shared context for a request (docs/plan.md, component 3).
 
 The context is made of rows of the stops table from days before the request day, in
 three groups: the same train at the same station, other trains at those stations around

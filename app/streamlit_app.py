@@ -9,8 +9,8 @@ from pathlib import Path
 
 import streamlit as st
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
-import router_core as rc
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from dbdelay.router import core as rc
 
 DATA_MONTH = (date(2026, 9, 1), date(2026, 9, 30))
 

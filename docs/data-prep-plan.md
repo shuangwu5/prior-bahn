@@ -77,7 +77,7 @@ Canceled rows are not usable as a delay target. The `delay_in_min` of a canceled
 | `is_replacement_train` is true | Replacement services have no stable history to learn from. Keep only if the router needs them. Decision needed. | 0.56% |
 | `is_additional_stop` is true | Not in the planned timetable, so the planning case never knows about them | 0.17% |
 | Both planned times null | Nothing to plan or predict | 5 rows |
-| Rows without `station_name` | Keep, and label with the EVA code (already done in `router_core.py`) | 0.06% |
+| Rows without `station_name` | Keep, and label with the EVA code (already done in `dbdelay/router/core.py`) | 0.06% |
 
 Canceled rows are **not dropped**. They stay in the table with a cancel label, because
 "will this stop be canceled" is part of the risk. They are excluded only from the delay-regression

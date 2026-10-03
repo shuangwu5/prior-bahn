@@ -9,8 +9,8 @@ from pathlib import Path
 import polars as pl
 import pytest
 
-from delaymodel.context import build_context
-from delaymodel.features import (
+from dbdelay.model.context import build_context
+from dbdelay.model.features import (
     feature_columns,
     shared_categories,
     to_frame,
@@ -24,7 +24,7 @@ DAY = date(2026, 9, 20)
 @pytest.fixture(scope="module")
 def stops() -> pl.LazyFrame:
     if not STOPS.exists():
-        pytest.skip("run scripts/prep_data.py first")
+        pytest.skip("run dbdelay/data/prep.py first")
     return pl.scan_parquet(STOPS)
 
 
