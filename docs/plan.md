@@ -32,7 +32,7 @@ Facts from the September file (14.8M stop events, 5,284 stations):
 # Components
 1. Data prep
    - Rebuild runs, drop non-train rows, merge stations by name.
-   - Build lagged history features (for example the delay of the same train at the same station over the previous 28 days). Only days before the row's own day may be used.
+   - Stops table is schedule-only (no lagged history columns). TabPFN gets history through the shared context rows. Lagged history features (for example the delay of the same train at the same station over the previous 28 days) are optional: add them only if they clearly beat the schedule-only version on the validation week (see `docs/data-prep-plan.md`, section 7). Only days before the row's own day may be used.
 2. Router
    - Pair consecutive stops of each run into hops (about 670k per day).
    - Connection Scan over the hops sorted by departure, with a minimum transfer time of 5 minutes within a station.
@@ -75,9 +75,13 @@ Rules:
 - All three evaluation levels use the same validation and test days.
 - Evaluate on a sample of a few hundred requests (stratified by train type and hour) to limit API cost.
 
+# Status (October 4)
+Done: data prep (`dbdelay/data/prep.py`), router and Streamlit UI (`dbdelay/router`, `app/`), shared-context builder, feature lists and TabPFN predict step (`dbdelay/model`), smoke test.
+Not started: baselines, evaluation, route risk, delay model in the app.
+
 # Schedule
-- October 3: data prep, router, baselines.
-- October 4: delay model and per-leg evaluation.
+- October 3: data prep, router. Done.
+- October 4: baselines, per-leg evaluation of the delay model (baselines slipped from October 3).
 - October 5: route risk, connection evaluation, Streamlit app.
 - October 6: variant comparison, README, video, submit.
 

@@ -1,6 +1,6 @@
 # Data preparation plan
 
-Plan only, no code yet. Files are in `data/monthly_processed_data/`.
+The `stops` table is built by `dbdelay/data/prep.py` (output `data/processed/stops.parquet`). `hops` and `transfers` (section 8) are not built yet. Raw files are in `data/monthly_processed_data/`.
 
 Provenance of the facts below:
 - **Dataset card** (HF `piebro/deutsche-bahn-data`): column names and types, and the descriptions
@@ -74,10 +74,10 @@ Canceled rows are not usable as a delay target. The `delay_in_min` of a canceled
 | Rule | Why | Size |
 |---|---|---|
 | `train_type` matches `bus`, `Bus`, `SEV`, `Bsv`, `BSv` (case-insensitive) | Train-only scope | about 306k per month |
-| `is_replacement_train` is true | Replacement services have no stable history to learn from. Keep only if the router needs them. Decision needed. | 0.56% |
+| `is_replacement_train` is true | Replacement services have no stable history to learn from. Dropped (decided). | 0.56% |
 | `is_additional_stop` is true | Not in the planned timetable, so the planning case never knows about them | 0.17% |
 | Both planned times null | Nothing to plan or predict | 5 rows |
-| Rows without `station_name` | Keep, and label with the EVA code (already done in `dbdelay/router/core.py`) | 0.06% |
+| Rows without `station_name` | Keep, and label with the EVA code (done in `prep.py`) | 0.06% |
 
 Canceled rows are **not dropped**. They stay in the table with a cancel label, because
 "will this stop be canceled" is part of the risk. They are excluded only from the delay-regression
@@ -110,7 +110,9 @@ target.
 | `dwell_planned_min` | `planned_dep - planned_arr` | Planned time standing at the stop |
 | `run_planned_min` | Planned time from the previous stop to this one | Planned leg length |
 | `arr_hour`, `arr_minute`, `dep_hour`, `dep_minute`, `weekday` | Hour and minute of `planned_arr` and of `planned_dep`, and the weekday | Calendar features. Each model uses the hour and minute of its own event. They are missing where the event does not exist (first and last stop). The old `hour` and `is_weekend` are removed. |
-| `stop_idx`, `n_stops`, `stop_frac` | From `train_line_station_num` and the run length | Position in the run. Later stops tend to collect more delay. |
+| `stop_num`, `n_stops`, `stop_frac` | `train_line_station_num`, the highest stop number of the run, and their ratio | Position in the run. Later stops tend to collect more delay. |
+| `split` | `context`, `validation` or `test` from `run_day` (splits in `plan.md`) | Keeps the split rule in one place |
+| `prev_station` | Station of the previous stop, null if the previous stop is missing (about 4% of runs have gaps) | Kept in the table, not used as a feature yet |
 | `prev_stop_dep_delay` | **Not used.** It is live state (step two in the plan). | Would leak in the planning case |
 | History features | Lagged statistics, see section 7 | Optional. Added only if the validation test shows a gain. |
 
@@ -168,8 +170,8 @@ get the signal from the retrieved context rows alone. The 28-day window in `plan
 example, not a tested choice.
 
 Order of work:
-1. First build `stops` with schedule-only columns (section 6, without history). This is enough to
-   start the first TabPFN experiments.
+1. Build `stops` with schedule-only columns (section 6, without history). Done. The first TabPFN
+   experiments can start.
 2. Compare on the validation week:
    - A: schedule-only columns, with context rows chosen by simple retrieval (same train and
      station, same station and hour).
@@ -183,8 +185,8 @@ context rows and query rows alike. Otherwise the evaluation leaks.
 
 ## 8. Output tables
 
-1. **`stops`**: one row per stop event after the filters, with the columns of section 6 and the
-   history features. Partitioned by `run_day`.
+1. **`stops`**: one row per stop event after the filters, with the columns of section 6 (no history
+   features yet). A single parquet file, sorted by `run_day`, `run_id`, `stop_num`.
 2. **`hops`**: pairs of consecutive stops of one run (feeds the router and leg evaluation).
 3. **`transfers`**: pairs of (arriving run, departing run) at the same station with a planned gap
    of at least 5 minutes and at most about 60 minutes (feeds connection evaluation).
@@ -194,10 +196,10 @@ split by `run_day`.
 
 ## 9. Open questions
 
-1. Keep replacement trains in the timetable (the router might use them) or drop them? Proposed: drop.
-2. Merge stations by name, as planned, or by EVA? Proposed: name, as in `plan.md`.
+1. ~~Keep replacement trains in the timetable~~ Decided: drop (done in `prep.py`).
+2. ~~Merge stations by name or by EVA~~ Decided: name (done in `prep.py`).
 3. ~~How to feed 5k stations to TabPFN~~ Decided: raw category, together with `train_key`. The
    shared per-request context holds only a few dozen stations. See "Feature lists" in section 6.
-4. Runs that started on July 31 appear in the August file. Keep them (they belong to the context pool) or cut at `run_day >= Aug 1`? Proposed: cut by `run_day`.
-5. Is a September-only check enough for the August schema, or do we want a quick equality check of
-   schema and filters across both files? Schemas are already identical.
+4. Runs that started on July 31 appear in the August file. ~~Keep them or cut?~~ Decided: cut by `run_day` to Aug 1 to Sep 30 (done in `prep.py`).
+5. ~~Is a September-only check enough for the August schema?~~ Decided: yes. Schemas are identical
+   and `prep.py` applies the same filters to both files. The section 3 checks stay September-only.
