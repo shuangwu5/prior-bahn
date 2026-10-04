@@ -56,7 +56,7 @@ Facts from the September file (14.8M stop events, 5,284 stations):
    - Measured on a Mac with local weights (10 query rows): about 5 s per call at 1k context rows, 17 s at 3k, 95 s at 10k. API timing is not measured yet.
 4. Route risk
    - Sample the leg distributions to get the probability of each transfer and the arrival distribution.
-   - Proposed: compute a single transfer analytically from the two distributions (assuming independence), P(arr <= buffer) + sum over a of P(arr = a) * P(dep >= a - buffer), with buffer = planned gap - minimum transfer time. No sampling noise. Sampling stays for whole routes. Needs untruncated distributions (bahnvorhersage caps at +30 min and so underrates short buffers).
+   - Proposed: compute a single transfer analytically from the two distributions (assuming independence), sum over all a of P(arr = a) * P(dep >= a - buffer), with buffer = planned gap - minimum transfer time. If trains never depart early, this is the same as P(arr <= buffer) + sum over a > buffer only of P(arr = a) * P(dep >= a - buffer). Summing over all a after P(arr <= buffer) counts the cases a <= buffer twice and can give more than 1. No sampling noise. Sampling stays for whole routes. Needs untruncated distributions (bahnvorhersage caps at +30 min and so underrates short buffers).
    - A missed connection costs a fixed penalty (the next departure on the same line).
 5. Evaluation
    - Sampling unit: a request (start, destination, time), not a random leg. Sample a few hundred real requests from the validation and test weeks. Each request gets its own shared context, built the same way as in the app.

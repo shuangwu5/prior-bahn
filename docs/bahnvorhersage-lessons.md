@@ -61,8 +61,12 @@ Nothing here is implemented yet. The resulting proposals are in `plan.md` and
 `SinglePredictor.calculate_transfer_scores` computes P(transfer works) analytically from the two
 discrete distributions, assuming the arriving and the departing delay are independent:
 
-P(arr <= buffer) + sum over a of P(arr = a) * P(dep >= a - buffer),
+P(arr <= buffer) + sum over a > buffer of P(arr = a) * P(dep >= a - buffer),
 with buffer = planned gap - minimum transfer time.
+
+The sum covers only a > buffer: the cases a <= buffer are in the first term already. If trains
+never depart early, the same value is the sum over all a of P(arr = a) * P(dep >= a - buffer),
+without the first term.
 
 Because their distribution stops at +30, a large arrival delay can never be caught, so transfers
 with a short buffer come out too pessimistic.
