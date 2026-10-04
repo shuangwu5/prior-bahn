@@ -54,7 +54,7 @@ with st.form("query"):
         min_value=DATA_MONTH[0],
         max_value=DATA_MONTH[1],
     )
-    stations = sorted(get_timetable(day).station_eva)
+    stations = get_timetable(day).stations
     col_from, col_to = st.columns(2)
     src_name = col_from.selectbox(
         "From", stations, index=stations.index("Heidelberg Hbf")
@@ -70,13 +70,12 @@ if submitted:
     if src_name == dst_name:
         st.warning("Pick two different stations.")
         st.stop()
-    src, dst = tt.station_eva[src_name], tt.station_eva[dst_name]
     depart = tt.day_start + timedelta(
         hours=depart_time.hour, minutes=depart_time.minute
     )
     found = 0
     for _ in range(n_options):
-        legs = rc.earliest_arrival(tt, src, dst, depart)
+        legs = rc.earliest_arrival(tt, src_name, dst_name, depart)
         if legs is None:
             break
         journey = rc.replay(tt, legs)

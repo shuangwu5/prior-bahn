@@ -18,7 +18,7 @@ class Timetable:
     conns: list[dict]
     deps: list[datetime]
     run_conns: dict[str, list[int]]
-    station_eva: dict[str, str]
+    stations: list[str]  # names, a station with several EVA codes is one stop
 
 
 @dataclass
@@ -69,7 +69,6 @@ def load_timetable(day: date, path: str = PATH) -> Timetable:
         )
         .sort("run_id", "train_line_station_num")
         .with_columns(
-            pl.col("eva").shift(-1).over("run_id").alias("next_eva"),
             pl.col("station_name").shift(-1).over("run_id").alias("next_station"),
             pl.col("arrival_planned_time")
             .shift(-1)
@@ -98,9 +97,7 @@ def load_timetable(day: date, path: str = PATH) -> Timetable:
             "train_type",
             "train_number",
             "line_number",
-            "eva",
             "station_name",
-            "next_eva",
             "next_station",
             pl.col("departure_planned_time").alias("dep"),
             pl.col("departure_change_time").alias("dep_actual"),
@@ -120,7 +117,7 @@ def load_timetable(day: date, path: str = PATH) -> Timetable:
         conns=C,
         deps=[c["dep"] for c in C],
         run_conns=run_conns,
-        station_eva=dict(zip(conns["station_name"], conns["eva"])),
+        stations=sorted(set(conns["station_name"]) | set(conns["next_station"])),
     )
 
 
@@ -134,7 +131,11 @@ def stops_between(tt: Timetable, enter: int, leave: int) -> list[str]:
 def earliest_arrival(
     tt: Timetable, src: str, dst: str, depart_at: datetime
 ) -> list[tuple[int, int]] | None:
-    """Connection scan: returns legs as (boarding connection, alighting connection) index pairs."""
+    """Connection scan: returns legs as (boarding connection, alighting connection) index pairs.
+
+    Stops are station names, as in prep.py: big stations have several EVA codes (main
+    line and S-Bahn), and a journey may start, end or change trains at any of them.
+    """
     C = tt.conns
     best = {src: depart_at}
     via: dict[str, tuple[int, int]] = {}
@@ -146,7 +147,7 @@ def earliest_arrival(
         c = C[i]
         if c["dep"] > best.get(dst, far):
             break
-        run, u, v = c["run_id"], c["eva"], c["next_eva"]
+        run, u, v = c["run_id"], c["station_name"], c["next_station"]
         ready = best.get(u)
         if (
             ready is not None
@@ -169,7 +170,7 @@ def earliest_arrival(
     while stop != src:
         enter, leave = via[stop]
         legs.append((enter, leave))
-        stop = C[enter]["eva"]
+        stop = C[enter]["station_name"]
     return legs[::-1]
 
 
