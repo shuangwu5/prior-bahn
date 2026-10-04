@@ -89,7 +89,7 @@ Details and counts in `bahnvorhersage-lessons.md`, section 2.
 
 | Rule | Why | Size |
 |---|---|---|
-| Drop historic and non-passenger types: `DB`, `PRE`, `MBB`, `P`, `SDG`, `UEX`, `DPN`, `ÖBA`, `KTB`, `UEF` and similar | Museum, steam and special trains, not useful for planning | about 17k rows |
+| Drop historic and non-passenger types: `DB`, `PRE`, `MBB`, `P`, `SDG`, `DPN`, `ÖBA`, `KTB`, `UEF` and similar. Keep `UEX` (holiday night trains, 272 rows) | Museum, steam and special trains, not useful for planning | about 17k rows |
 | Set `arr_delay` / `dep_delay` to null when the absolute value is over 1000 min | Date errors of one day, in the planned time (RB 13918) or the actual time just after midnight (erx 21043, erx 21088, SBH 34402). Not safely fixable | 15 delays |
 | Set `run_planned_min` to null when it is over 1300 min | Planned date one day late. Legs over 300 min are otherwise real night trains (NJ, DZ, UEX), so no lower bound | 7 legs |
 | Check arrivals more than 60 min early | Not yet known whether they are errors | 274 arrivals, 84 departures |

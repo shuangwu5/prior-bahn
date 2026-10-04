@@ -84,7 +84,8 @@ with a short buffer come out too pessimistic.
    60 min early. These are not checked yet.
 2. **Do not clip the target.** We need the tail for p95, route risk and transfers.
 3. **Drop historic and odd train types:** `DB` (10,832 rows), `PRE` (1,876), `MBB` (1,305), `P`,
-   `SDG`, `UEX`, `DPN`, `ÖBA`, `KTB`, `UEF` and similar. About 17k rows in total.
+   `SDG`, `DPN`, `ÖBA`, `KTB`, `UEF` and similar. About 17k rows in total. Keep `UEX`: these are
+   holiday night trains with passengers (272 rows, 8 legs over 300 min, see lesson 1).
 4. **One `minute_of_day` per event** instead of separate hour and minute columns.
 5. **Geography:** station `lat` and `lon`, `distance_traveled` and `bearing`. They generalize to
    stations or trains that are missing from a request's context, and `bearing` gives the direction
