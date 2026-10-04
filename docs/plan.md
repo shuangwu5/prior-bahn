@@ -4,7 +4,9 @@ Submission deadline: October 6, 2026 (to be confirmed on the hackathon page).
 Deliverable: a runnable repo, plus an optional demo video.
 
 # Product
-The user picks a start station, a destination, a departure time and the current time ("now").
+The user picks a start station, a destination and one time, "now" (decided October 4). "Now" is
+also the earliest departure: all candidate routes leave at or after it. Only what happened before
+"now" may be used.
 We return several train-only routes. For each route we show:
 - the probability that every connection holds
 - the arrival-time distribution at the destination (for example "80% by 14:32, 95% by 15:40")
@@ -48,10 +50,11 @@ Facts from the September file (14.8M stop events, 5,284 stations):
    - Two models, two calls per request: one for arrival delay, one for departure delay. Cancellation is left out of the first version.
    - Seen and not-seen legs share one context, so a request still makes two calls. The context holds rows from earlier days of both kinds: runs with a sighting at a similar horizon, and runs with no sighting. Separate contexts for the two kinds are a variant to test on the validation week.
    - Context: one shared context per request, not per leg. Prediction time is set by the context size, not by the number of rows predicted, so one call answers all legs of all candidate routes.
-   - The context is built from the stations and trains on the candidate routes (at most 5 routes), only from days before the request day:
-     - same train at the same station (closest match)
-     - other trains at those stations around the same hour and weekday
-     - a small general sample from all stations, split evenly over the train types of the request. A uniform sample would be about half S-Bahn (46% of all rows), whatever the request is about. The stops table itself is not subsampled: the router and the evaluation need all runs
+   - The context is built from the stations and trains on the candidate routes (at most 5 routes), in three parts:
+     1. Same train at the same station on earlier days (closest match). Planned (decided October 4): also the same train earlier on the request day, at stops it passed before "now".
+     2. Other trains at those stations in the 60 minutes before "now", on the same weekday of earlier days (done). Planned (decided October 4): also the same 60 minutes of the request day, which shows a disruption that is going on right now. Rows split evenly over the train types of the request, like part 3. Rows a type cannot fill go to the other trains at the station.
+     3. A small general sample from all stations, split evenly over the train types of the request (done). A uniform sample would be about half S-Bahn (46% of all rows), whatever the request is about. The stops table itself is not subsampled: the router and the evaluation need all runs.
+   - Rows of the request day: an event counts only if its actual time is before "now". A planned time before "now" is not enough: a late train may not have left yet. Later events of the same row are set to empty. These rows need the `days_ago` feature (0 for the request day), otherwise TabPFN cannot tell them from older rows.
    - Starting point: about 2k context rows, split roughly 40% / 40% / 20% across the three groups. Both the size and the split are settings to tune on the validation week.
    - Measured on a Mac with local weights (10 query rows): about 5 s per call at 1k context rows, 17 s at 3k, 95 s at 10k. API timing is not measured yet.
 4. Route risk
@@ -91,13 +94,18 @@ Rules:
 - Evaluate on a sample of a few hundred requests (stratified by train type and hour) to limit API cost.
 
 # Status (October 4)
-Done: data prep (`dbdelay/data/prep.py`) with the data-quality fixes, router and Streamlit UI (`dbdelay/router`, `app/`), shared-context builder, feature lists and TabPFN predict step (`dbdelay/model`), smoke test.
-Not started: baselines, evaluation, change-in-delay model (sightings), route risk, delay model in the app.
+Done:
+- data prep (`dbdelay/data/prep.py`) with the data-quality fixes
+- router and Streamlit UI (`dbdelay/router`, `app/`)
+- shared-context builder, feature lists with optional `days_ago`, TabPFN predict step (`dbdelay/model`), smoke test
+- per-leg evaluation of not-seen legs (`dbdelay/eval/`, results in `data/eval/README.md`): 300 sampled validation runs, baselines `global` and `train_station`, TabPFN variants. Result: `train_station` beats TabPFN overall (arrival pinball 1.19 against 1.28). TabPFN wins only on S-Bahn. These scores use the stops table from before the data-quality fixes.
+
+Not done: the gradient-boosted baseline (written, too slow to run), "the delay stays the same" baseline, parts 1 and 2 of the context with rows of the request day, change-in-delay model (sightings), route risk, delay model in the app.
 
 # Schedule
 - October 3: data prep, router. Done.
-- October 4: data-quality fixes and historic train types (`docs/data-prep-plan.md`, section 4), baselines (historical distribution, "delay stays the same", gradient-boosted), per-leg evaluation of not-seen legs (the context builder we have).
-- October 5: sightings in the context builder and evaluation of seen legs, route risk with the analytic transfer probability, connection evaluation.
+- October 4: data-quality fixes and historic train types. Baselines `global` and `train_station`, per-leg evaluation of not-seen legs. Done.
+- October 5: context parts 1 and 2 with rows of the request day and the type split, evaluation with "now" set to each request's departure time, "delay stays the same" baseline. Then route risk with the analytic transfer probability, connection evaluation.
 - October 6: Streamlit app with "now", variant comparison, README, video, submit.
 
 # Risks
