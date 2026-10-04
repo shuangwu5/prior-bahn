@@ -58,7 +58,11 @@ def build_context(
         .head(n_same_train)
     )
 
-    # query slots widened by the hour window, same weekday
+    # query slots widened by the hour window, same weekday. The window wraps at
+    # midnight: hour 23 also takes hour 0 of the next weekday, hour 0 also takes hour 23
+    # of the weekday before (weekday 1 is Monday, 7 is Sunday).
+    hours = pl.col("hour") + pl.col("shift")
+    weekday = pl.col("weekday").cast(pl.Int16) - 1 + hours // 24
     slots = (
         with_hour(query)
         .select("station", "weekday", "hour")
@@ -67,9 +71,12 @@ def build_context(
         .join(
             pl.DataFrame({"shift": range(-HOUR_WINDOW, HOUR_WINDOW + 1)}), how="cross"
         )
-        .select("station", "weekday", (pl.col("hour") + pl.col("shift")).alias("hour"))
+        .select(
+            "station",
+            (weekday % 7 + 1).cast(pl.UInt8).alias("weekday"),
+            (hours % 24).cast(pl.Int8).alias("hour"),
+        )
         .unique()
-        .with_columns(pl.col("hour").cast(pl.Int8))
     )
     same_slot = _sample(
         local.join(slots, on=["station", "weekday", "hour"]), n_same_slot, seed

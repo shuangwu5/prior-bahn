@@ -1,9 +1,9 @@
-"""Context builder checks on the real stops table (no API calls).
+"""Context builder checks on the real stops table and on small made-up ones (no API calls).
 
 uv run --no-sync pytest tests/test_context.py
 """
 
-from datetime import date
+from datetime import date, datetime, time, timedelta
 from pathlib import Path
 
 import polars as pl
@@ -51,6 +51,56 @@ def test_context_only_uses_earlier_days(stops, query):
         .to_series()
         .any()
     )
+
+
+def made_up_stops(rows: list[tuple]) -> pl.DataFrame:
+    """A small stops table with the columns build_context reads, one row per stop.
+
+    Each row is (run_id, run_day, train_key, planned_arr, planned_dep, arr_delay,
+    dep_delay). All rows are at station "S". Hours and weekday follow prep.py.
+    """
+    df = pl.DataFrame(
+        rows,
+        schema={
+            "run_id": pl.String,
+            "run_day": pl.Date,
+            "train_key": pl.String,
+            "planned_arr": pl.Datetime("ns"),
+            "planned_dep": pl.Datetime("ns"),
+            "arr_delay": pl.Int16,
+            "dep_delay": pl.Int16,
+        },
+        orient="row",
+    )
+    planned = pl.coalesce("planned_dep", "planned_arr")
+    return df.with_columns(
+        run_day=pl.col("run_day").cast(pl.Datetime("ns")),
+        station=pl.lit("S"),
+        stop_num=pl.lit(1, pl.Int32),
+        arr_hour=pl.col("planned_arr").dt.hour().cast(pl.Float64),
+        dep_hour=pl.col("planned_dep").dt.hour().cast(pl.Float64),
+        weekday=planned.dt.weekday().cast(pl.UInt8),  # 1 is Monday
+    )
+
+
+def at(day: date, hour: int, minute: int = 0) -> datetime:
+    return datetime.combine(day, time(hour, minute))
+
+
+def test_hour_window_wraps_at_midnight():
+    # query on a Sunday at 23:xx, by a train that is not in the context
+    query = made_up_stops([("q", DAY, "RE 9", None, at(DAY, 23, 30), None, None)])
+    sunday, monday = DAY - timedelta(days=7), DAY - timedelta(days=6)
+    stops = made_up_stops(
+        [
+            ("next day 00h", monday, "RE 1", None, at(monday, 0, 10), None, 0),
+            ("same day 22h", sunday, "RE 1", None, at(sunday, 22, 10), None, 0),
+            ("same day 00h", sunday, "RE 1", None, at(sunday, 0, 10), None, 0),
+            ("next day 01h", monday, "RE 1", None, at(monday, 1, 10), None, 0),
+        ]
+    ).lazy()
+    context = build_context(stops, query, DAY, 10, (0, 1, 0))
+    assert sorted(context["run_id"]) == ["next day 00h", "same day 22h"]
 
 
 @pytest.mark.parametrize("model", ["arr", "dep"])
