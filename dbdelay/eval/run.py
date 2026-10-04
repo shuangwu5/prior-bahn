@@ -19,6 +19,8 @@ uv run --no-sync python -m dbdelay.eval.run validation report [--subset all]
 
 import argparse
 import time
+from datetime import datetime
+from datetime import time as clock
 
 import polars as pl
 
@@ -63,10 +65,12 @@ def tabpfn(
             continue
         t = time.time()
         day = run["run_day"][0].date()
+        # "now" is the start of the run's day: whole runs are scored, so nothing of
+        # that day may be known yet
         context = build_context(
             stops,
             run,
-            day,
+            datetime.combine(day, clock()),
             skip_s_bahn=config["skip_s_bahn"],
             **({"shares": config["shares"]} if "shares" in config else {}),
         )

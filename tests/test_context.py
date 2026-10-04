@@ -19,6 +19,7 @@ from dbdelay.model.features import (
 
 STOPS = Path(__file__).resolve().parents[1] / "data/processed/stops.parquet"
 DAY = date(2026, 9, 20)
+START = datetime.combine(DAY, time())  # "now" at the start of DAY
 
 
 @pytest.fixture(scope="module")
@@ -42,7 +43,7 @@ def query(stops) -> pl.DataFrame:
 
 
 def test_context_only_uses_earlier_days(stops, query):
-    context = build_context(stops, query, DAY, size=500)
+    context = build_context(stops, query, START, size=500)
     assert 0 < len(context) <= 500
     assert context["run_day"].max() < pl.Series([DAY]).cast(pl.Datetime("ns"))[0]
     assert context["run_id"].is_in(query["run_id"].implode()).sum() == 0
@@ -105,7 +106,7 @@ def test_window_wraps_at_midnight():
             ("sunday 00:25", sunday, "RE 1", None, at(sunday, 0, 25), None, 0),
         ]
     ).lazy()
-    context = build_context(stops, query, DAY, 10, (0, 1, 0))
+    context = build_context(stops, query, START, 10, (0, 1, 0))
     assert sorted(context["run_id"]) == ["saturday 23:30", "sunday 00:10"]
 
 
@@ -130,8 +131,55 @@ def test_no_event_on_the_query_day_leaks():
             ("before midnight", eve, "RE 1", at(eve, 23, 40), at(eve, 23, 45), 2, 3),
         ]
     ).lazy()
-    context = build_context(stops, query, DAY, 10, (1, 0, 0))
+    context = build_context(stops, query, START, 10, (1, 0, 0))
     assert sorted(context["run_id"]) == ["before midnight", "earlier day"]
+
+
+def test_rows_of_the_request_day_count_only_before_now():
+    # now is 14:00, the query train leaves at 16:00, so the earlier-day slot is 15:00 to
+    # 15:59 and the "right now" window is 13:00 to 13:59
+    query = made_up_stops([("q", DAY, "ICE 9", None, at(DAY, 16), None, None)])
+    stops = made_up_stops(
+        [
+            ("left 13:35", DAY, "RE 1", None, at(DAY, 13, 30), None, 5),
+            ("left before the window", DAY, "RE 1", None, at(DAY, 12, 30), None, 0),
+            ("late, not left yet", DAY, "RE 1", None, at(DAY, 13, 50), None, 15),
+            (
+                "arrived, not left yet",
+                DAY,
+                "RE 1",
+                at(DAY, 13, 40),
+                at(DAY, 14, 10),
+                0,
+                0,
+            ),
+            ("in the slot, after now", DAY, "RE 1", None, at(DAY, 15, 30), None, 0),
+        ]
+    ).lazy()
+    context = build_context(stops, query, at(DAY, 14), 10, (0, 1, 0))
+    assert context.sort("run_id").select("run_id", "arr_delay", "dep_delay").rows() == [
+        ("arrived, not left yet", 0, None),
+        ("left 13:35", None, 5),
+    ]
+
+
+def test_same_station_group_is_split_by_train_type():
+    # 2 ICE rows in the slot: the other 4 come from RE, never from S-Bahn, since the
+    # query has no S-Bahn train
+    query = made_up_stops([("q", DAY, "ICE 9", None, at(DAY, 10), None, None)])
+    week_ago = DAY - timedelta(days=7)
+    stops = made_up_stops(
+        [
+            (f"{key} {i}", week_ago, key, None, at(week_ago, 9, 30), None, 0)
+            for key, n in [("ICE 7", 2), ("RE 1", 10), ("S 1", 10)]
+            for i in range(n)
+        ]
+    ).lazy()
+    context = build_context(stops, query, START, 6, (0, 1, 0))
+    assert context["train_type"].value_counts().sort("train_type").rows() == [
+        ("ICE", 2),
+        ("RE", 4),
+    ]
 
 
 def test_general_group_is_split_evenly_over_query_train_types():
@@ -154,7 +202,7 @@ def test_general_group_is_split_evenly_over_query_train_types():
             for i in range(4)
         ]
     ).lazy()
-    context = build_context(stops, query, DAY, 8, (0, 0, 1))
+    context = build_context(stops, query, START, 8, (0, 0, 1))
     assert context["train_type"].value_counts().sort("train_type").rows() == [
         ("NJ", 4),
         ("S", 4),
@@ -163,7 +211,7 @@ def test_general_group_is_split_evenly_over_query_train_types():
 
 @pytest.mark.parametrize("model", ["arr", "dep"])
 def test_features_share_categories(stops, query, model):
-    context = build_context(stops, query, DAY, size=500)
+    context = build_context(stops, query, START, size=500)
     train = usable_rows(context, model)
     cats = shared_categories(train, query)
     X_train, X_query = to_frame(train, model, cats), to_frame(query, model, cats)
