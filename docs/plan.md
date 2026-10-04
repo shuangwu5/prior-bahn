@@ -4,17 +4,23 @@ Submission deadline: October 6, 2026 (to be confirmed on the hackathon page).
 Deliverable: a runnable repo, plus an optional demo video.
 
 # Product
-The user picks a start station, a destination and a departure time.
+The user picks a start station, a destination, a departure time and the current time ("now").
 We return several train-only routes. For each route we show:
 - the probability that every connection holds
 - the arrival-time distribution at the destination (for example "80% by 14:32, 95% by 15:40")
 
 Routes are ranked by reliable arrival, not by planned arrival.
 
+Headline question: "My train is 8 min late now. Will I make my connection, or should I take
+another route?" Trains already running at "now" are predicted from their observed delay. Trains
+not running yet (later legs, or trips planned in advance) are predicted from the schedule.
+
 # Decisions
 - Routing: a router built from the dataset's own timetable. No external routing API.
 - Scope: trains only. Bus and rail-replacement rows are dropped.
-- Horizon: planning case first (schedule and history only). Live state (delays already observed that day) is step two if time allows.
+- What the model predicts (decided October 4, replaces "live state is step two"): the change in delay, like bahnvorhersage's `delay_diff`. One model for all legs (`docs/data-prep-plan.md`, section 10).
+  - Train already running at "now": the input is the delay where we last saw it, and the model predicts how much that changes by the stop we care about. We have no DB forecasts, so this sighting stands in for them. This is the headline case.
+  - Train not started yet (later legs, or trips planned ahead): marked "not seen yet", and the model predicts the delay itself from the timetable and history. Needed in almost every request.
 - Models: TabPFN-3.5 through the Prior Labs API. The key is read from `.env`, which is not committed.
 - Demo: a Streamlit app. An agent wrapper is a stretch goal.
 
@@ -40,6 +46,7 @@ Facts from the September file (14.8M stop events, 5,284 stations):
 3. Delay model
    - For each leg, predict the arrival-delay distribution at the alighting stop and the departure-delay distribution of the connecting train at the transfer station.
    - Two models, two calls per request: one for arrival delay, one for departure delay. Cancellation is left out of the first version.
+   - Seen and not-seen legs share one context, so a request still makes two calls. The context holds rows from earlier days of both kinds: runs with a sighting at a similar horizon, and runs with no sighting. Separate contexts for the two kinds are a variant to test on the validation week.
    - Context: one shared context per request, not per leg. Prediction time is set by the context size, not by the number of rows predicted, so one call answers all legs of all candidate routes.
    - The context is built from the stations and trains on the candidate routes (at most 5 routes), only from days before the request day:
      - same train at the same station (closest match)
@@ -49,16 +56,24 @@ Facts from the September file (14.8M stop events, 5,284 stations):
    - Measured on a Mac with local weights (10 query rows): about 5 s per call at 1k context rows, 17 s at 3k, 95 s at 10k. API timing is not measured yet.
 4. Route risk
    - Sample the leg distributions to get the probability of each transfer and the arrival distribution.
+   - Proposed: compute a single transfer analytically from the two distributions (assuming independence), P(arr <= buffer) + sum over a of P(arr = a) * P(dep >= a - buffer), with buffer = planned gap - minimum transfer time. No sampling noise. Sampling stays for whole routes. Needs untruncated distributions (bahnvorhersage caps at +30 min and so underrates short buffers).
    - A missed connection costs a fixed penalty (the next departure on the same line).
 5. Evaluation
    - Sampling unit: a request (start, destination, time), not a random leg. Sample a few hundred real requests from the validation and test weeks. Each request gets its own shared context, built the same way as in the app.
    - Per leg: absolute error and distribution quality (pinball loss), on the legs of the sampled requests.
    - Per connection: Brier score and a calibration plot, on historical transfer pairs.
    - Per route: predicted probability of an on-time arrival against what actually happened on that day.
-   - Baselines: historical frequency per train and station, and a gradient-boosted model.
+   - Baselines: historical frequency per train and station, and a gradient-boosted model. For trains already seen also "the delay stays the same" (MAE 1.27 at 10 min ahead, 2.51 at 30 min on the validation week). This is the baseline to beat for seen trains, not the 2.7 of the not-seen case.
+   - Ask each request at a few times (for example 60, 15 and 0 min before the first departure). Report not-seen legs separately, and seen legs by horizon (up to 15 min, 15 to 60, over 60).
    - Compare the TabPFN-3.5 variants (Fast, Plus, Thinking).
+   - Proposed additions (from the bahnvorhersage review, `docs/bahnvorhersage-lessons.md`):
+     - Per leg: CRPS on the full predicted distribution, next to pinball loss.
+     - The historical-frequency baseline is a distribution: empirical CDF per (train, station), falling back to (train type, station), then global. Scored with the same metrics.
+     - Calibration per leg: average predicted CDF against the observed one, and how often the actual delay is at or below the predicted p80 and p95.
+     - Breakdowns: long-distance against regional, and by hour.
+     - Gradient-boosted baseline: fit once on the whole context pool (bahnvorhersage refits per batch and keeps only the last one).
 6. Demo and submission
-   - Streamlit app that replays a past day: pick stations and time, see ranked routes with risk, then reveal what actually happened.
+   - Streamlit app that replays a past day: pick stations, departure time and "now", see the observed delays of running trains and the ranked routes with risk, then reveal what actually happened.
    - README and video.
 
 # Splits
@@ -77,16 +92,19 @@ Rules:
 
 # Status (October 4)
 Done: data prep (`dbdelay/data/prep.py`), router and Streamlit UI (`dbdelay/router`, `app/`), shared-context builder, feature lists and TabPFN predict step (`dbdelay/model`), smoke test.
-Not started: baselines, evaluation, route risk, delay model in the app.
+Not started: data-quality fixes, baselines, evaluation, change-in-delay model (sightings), route risk, delay model in the app.
 
 # Schedule
 - October 3: data prep, router. Done.
-- October 4: baselines, per-leg evaluation of the delay model (baselines slipped from October 3).
-- October 5: route risk, connection evaluation, Streamlit app.
-- October 6: variant comparison, README, video, submit.
+- October 4: data-quality fixes and historic train types (`docs/data-prep-plan.md`, section 4), baselines (historical distribution, "delay stays the same", gradient-boosted), per-leg evaluation of not-seen legs (the context builder we have).
+- October 5: sightings in the context builder and evaluation of seen legs, route risk with the analytic transfer probability, connection evaluation.
+- October 6: Streamlit app with "now", variant comparison, README, video, submit.
 
 # Risks
-- Weak signal in the planning case: the per-train-per-station median gives 2.7 min absolute error against 3.0 for the global median. The result has to stand on calibrated probabilities, not point accuracy.
+- Weak signal for trains not seen yet: the per-train-per-station median gives 2.7 min absolute error against 3.0 for the global median. The result has to stand on calibrated probabilities, not point accuracy.
+- Strong baseline for seen trains: "the delay stays the same" is hard to beat when the stop is close. The room for TabPFN is at 15 min and more ahead, where the delay changes more (mean change +0.5 min at 16 min, +1.1 at 30 min).
+- The last observed delay is a weaker input than DB's own forecast, which also knows schedule buffers and disruptions.
+- The schedule is tight: sightings, route risk and the app all land on October 5 and 6.
 - Latency and API cost: several predictions per route.
 - Legs are treated as independent, which is wrong on bad network days. Stated as a limitation.
 - The router only plans on days in the dataset and only transfers within one station.
@@ -95,3 +113,4 @@ Not started: baselines, evaluation, route risk, delay model in the app.
 # Open points
 - Read the judging criteria on the hackathon page (it could not be fetched automatically).
 - Check API pricing with `estimate_cost()` before running the evaluation.
+- Decide which of the remaining proposals from `docs/bahnvorhersage-lessons.md` to adopt (evaluation additions above, geography features in `docs/data-prep-plan.md`, section 6).

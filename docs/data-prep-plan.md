@@ -83,6 +83,19 @@ Canceled rows are **not dropped**. They stay in the table with a cancel label, b
 "will this stop be canceled" is part of the risk. They are excluded only from the delay-regression
 target.
 
+### Planned for October 4 (from the bahnvorhersage review, not in `prep.py` yet)
+
+Details and counts in `bahnvorhersage-lessons.md`, section 2.
+
+| Rule | Why | Size |
+|---|---|---|
+| Drop historic and non-passenger types: `DB`, `PRE`, `MBB`, `P`, `SDG`, `UEX`, `DPN`, `ÖBA`, `KTB`, `UEF` and similar | Museum, steam and special trains, not useful for planning | about 17k rows |
+| Set `arr_delay` / `dep_delay` to null when the absolute value is over 1000 min | Date errors of one day, in the planned time (RB 13918) or the actual time just after midnight (erx 21043, erx 21088, SBH 34402). Not safely fixable | 15 delays |
+| Set `run_planned_min` to null when it is over 1300 min | Planned date one day late. Legs over 300 min are otherwise real night trains (NJ, DZ, UEX), so no lower bound | 7 legs |
+| Check arrivals more than 60 min early | Not yet known whether they are errors | 274 arrivals, 84 departures |
+
+The target is **not clipped**. The tail is needed for p95, route risk and transfers.
+
 ## 5. Columns to drop
 
 | Column | Why |
@@ -113,7 +126,7 @@ target.
 | `stop_num`, `n_stops`, `stop_frac` | `train_line_station_num`, the highest stop number of the run, and their ratio | Position in the run. Later stops tend to collect more delay. |
 | `split` | `context`, `validation` or `test` from `run_day` (splits in `plan.md`) | Keeps the split rule in one place |
 | `prev_station` | Station of the previous stop, null if the previous stop is missing (about 4% of runs have gaps) | Kept in the table, not used as a feature yet |
-| `prev_stop_dep_delay` | **Not used.** It is live state (step two in the plan). | Would leak in the planning case |
+| `prev_stop_dep_delay` | **Not in `stops`.** The model uses the delay where the train was last seen before the question time instead, built per request (section 10) | The previous stop may not have happened yet when the question is asked |
 | History features | Lagged statistics, see section 7 | Optional. Added only if the validation test shows a gain. |
 
 ### Feature lists (decided)
@@ -139,6 +152,19 @@ categories, with no target encoding.
 Left out for now: `prev_station`, `final_destination`, `is_weekend`, the raw planned times, and the
 keys and labels (`run_id`, `run_day`, `split`, canceled flags). Both models also train only on rows
 that are not canceled and have a non-null target.
+
+### Proposed feature changes (from the bahnvorhersage review)
+
+Each is tested on the validation week before it replaces a decided feature.
+
+| Change | Why |
+|---|---|
+| `arr_minute_of_day` and `dep_minute_of_day` instead of the separate hour and minute columns | One continuous time column. The minute alone is close to noise |
+| Station `lat`, `lon` | Generalizes to stations that are missing from a request's context. Needs a table from EVA number to coordinates |
+| `distance_traveled` (km since the first stop) | Better position feature than `stop_frac`. Needs the coordinates |
+| `bearing` (degrees from the first stop to the final destination) | Direction of travel as a number. The two directions of a line can behave differently |
+| `is_regional` (from a list of long-distance types) | Coarse fallback for rare train types |
+| A query category missing from the context: null, or a category with no context rows | Decide by test (open question in the TabPFN section below) |
 
 ### How the inputs are passed to TabPFN (checked in tabpfn 9.1.0)
 
@@ -203,3 +229,59 @@ split by `run_day`.
 4. Runs that started on July 31 appear in the August file. ~~Keep them or cut?~~ Decided: cut by `run_day` to Aug 1 to Sep 30 (done in `prep.py`).
 5. ~~Is a September-only check enough for the August schema?~~ Decided: yes. Schemas are identical
    and `prep.py` applies the same filters to both files. The section 3 checks stay September-only.
+6. Which source for station coordinates (EVA number to `lat`, `lon`)? Needed for the geography
+   features in section 6.
+7. Are the arrivals more than 60 min early real or data errors?
+
+## 10. Predicting the change in delay (decided October 4, not built yet)
+
+The person asks at time t ("now"). Some trains on the candidate routes are already running, others
+have not started yet. One model handles both. Our data has no DB forecasts, so the delay where we
+last saw the train stands in for them (measured in `bahnvorhersage-lessons.md`, section 3).
+
+### What the model predicts
+
+The model predicts how much the delay changes between the last place we saw the train and the stop
+we care about. Example: the train left stop A 5 min late, and we want stop C. If the model predicts
++2, the train arrives at C about 7 min late.
+
+If we have not seen the train yet (it has not started), there is nothing to change from. The model
+then predicts the delay itself, from the timetable and from how this train usually runs.
+
+### Columns added per row
+
+| Column | Meaning |
+|---|---|
+| `seen_delay` | Delay where we last saw the train before t. Empty if not seen yet |
+| `seen_stop_num` | Stop where we last saw it. Empty if not seen yet |
+| `horizon_min` | Scheduled travel time from the last sighting to the target stop. Empty if not seen yet |
+| `stops_ahead` | Number of stops from the last sighting to the target stop. Empty if not seen yet |
+| `delay_change` | The target: delay at the target stop minus `seen_delay`, or the delay itself if not seen yet |
+
+"Seen" means an arrival or departure with an actual time before t. A departure can also be predicted
+from the arrival at the same stop (the train has arrived but not left yet). The timetable columns of
+the target stop come from `stops` unchanged.
+
+### Rules
+
+- `seen_delay` stays an input next to the target: big delays tend to shrink, small ones tend to
+  grow. The delay itself is `seen_delay` plus the predicted change, so route risk and transfers
+  work as before. The target is not clipped.
+- "Not seen yet" is written as empty, never as 0. A delay of exactly 0 is the most common sighting
+  (35%) and means "on time a few minutes ago", which is very different from "we know nothing".
+- When the question is asked (2 hours or 1 day before departure) does not matter for a train we have
+  not seen. We know the same thing in both cases, so there is no column for it.
+- The rows are built per request in the context builder, not stored as one big table (all
+  combinations would be hundreds of millions of rows):
+  - rows to predict: the last sighting of each train before t, or empty.
+  - context rows from earlier days: for each run we pick, one sighting with a horizon similar to
+    the rows we predict, plus some rows with no sighting for the trains that have not started.
+- Actual times are scheduled time plus delay, so `stops` needs no new columns. Canceled stops have
+  no actual time and never count as a sighting.
+- Leak rule: a sighting must be an earlier stop of the same run, with an actual time before t.
+  Context rows come only from the context-pool days, as before.
+- The section 4 date-error rules come first. A wrong `seen_delay` breaks both an input and the
+  target.
+- Missing stop numbers (about 4% of runs) do not matter here, since the horizon comes from times.
+- To test on the validation week: one shared context for both kinds of rows (the default) against
+  separate contexts for seen and not-seen rows.
