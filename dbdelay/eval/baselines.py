@@ -10,6 +10,7 @@ from datetime import datetime, time
 
 import polars as pl
 
+from dbdelay.model.context import last_event_time
 from dbdelay.model.features import EVENTS
 from dbdelay.model.predict import QUANTILES
 
@@ -23,22 +24,12 @@ def _quantiles(target: str) -> list[pl.Expr]:
     ] + [pl.len().alias("count")]
 
 
-def _last_event_time() -> pl.Expr:
-    """Latest planned or actual (planned + delay) time of the row's arrival and departure."""
-    return pl.max_horizontal(
-        "planned_arr",
-        "planned_dep",
-        pl.col("planned_arr") + pl.duration(minutes=pl.col("arr_delay")),
-        pl.col("planned_dep") + pl.duration(minutes=pl.col("dep_delay")),
-    )
-
-
 def _history(stops: pl.LazyFrame, day, model: str) -> pl.LazyFrame:
     event = EVENTS[model]
     return stops.filter(
         pl.col("run_day") < pl.lit(day),
         # a run of an earlier day can go past midnight: keep its events of day D out
-        _last_event_time() < datetime.combine(day, time()),
+        last_event_time() < datetime.combine(day, time()),
         pl.col(event["target"]).is_not_null(),
         ~pl.col(event["canceled"]),
     ).with_columns(pl.col(event["target"]).cast(pl.Float64))
