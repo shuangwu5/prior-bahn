@@ -163,6 +163,38 @@ def test_rows_of_the_request_day_count_only_before_now():
     ]
 
 
+def test_same_train_group_takes_the_stops_passed_today_first():
+    # now is 14:00. The query is stop 3 of run "q". Stops 1 and 2 were passed before now,
+    # stop 2 only arrived (it leaves late, after now). Stop 4 has not happened yet.
+    run = made_up_stops(
+        [
+            ("q", DAY, "ICE 9", None, at(DAY, 13), None, 4),
+            ("q", DAY, "ICE 9", at(DAY, 13, 40), at(DAY, 13, 50), 6, 12),
+            ("q", DAY, "ICE 9", at(DAY, 14, 30), at(DAY, 14, 32), None, None),
+            ("q", DAY, "ICE 9", at(DAY, 15), None, None, None),
+            (
+                "week ago",
+                DAY - timedelta(days=7),
+                "ICE 9",
+                at(DAY - timedelta(days=7), 14, 30),
+                None,
+                3,
+                None,
+            ),
+        ]
+    ).with_columns(
+        stop_num=pl.Series([1, 2, 3, 4, 3], dtype=pl.Int32),
+        station=pl.Series(["A", "B", "C", "D", "C"]),
+    )
+    query = run.filter(pl.col("run_id") == "q", pl.col("stop_num") == 3)
+    context = build_context(run.lazy(), query, at(DAY, 14), 10, (1, 0, 0))
+    assert context.select("run_id", "stop_num", "arr_delay", "dep_delay").rows() == [
+        ("q", 2, 6, None),
+        ("q", 1, None, 4),
+        ("week ago", 3, 3, None),
+    ]
+
+
 def test_same_station_group_is_split_by_train_type():
     # 2 ICE rows in the slot: the other 4 come from RE, never from S-Bahn, since the
     # query has no S-Bahn train

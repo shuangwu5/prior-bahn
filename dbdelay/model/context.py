@@ -2,7 +2,8 @@
 
 The context is made of rows of the stops table that are known at "now", the time the user
 picks (also the earliest departure). It has three groups:
-1. the same train at the same station on earlier days
+1. the same train: first the stops it passed today before "now" (the strongest signal),
+   then the same train at the same station on earlier days
 2. other trains at those stations: first the rows of the 60 minutes before "now", which
    show what is going on right now, then rows of earlier days on the same weekday in the
    60 minutes before each query row's planned time
@@ -87,8 +88,8 @@ def build_context(
 ) -> pl.DataFrame:
     """Context rows for `query` (rows of the stops table), as known at `now`.
 
-    Only events with an actual time before `now` are used (see `known_at`). Rows of the
-    query's own runs are left out.
+    Only events with an actual time before `now` are used (see `known_at`). The query's own
+    runs appear only in the first group, with the stops they passed before `now`.
     """
     # filter for the second group, see the module docstring
     others = (
@@ -98,23 +99,32 @@ def build_context(
     )
     types = sorted(query["train_type"].unique().drop_nulls())
     n_same_train, n_same_slot, n_general = (round(size * s) for s in shares)
-    known = (
-        known_at(stops, now)
-        .filter(~pl.col("run_id").is_in(query["run_id"].unique().implode()))
-        .pipe(with_minute_of_day)
-    )
+    of_query_runs = pl.col("run_id").is_in(query["run_id"].unique().implode())
+    known = known_at(stops, now).pipe(with_minute_of_day)
 
-    # one collect for the two station-based groups: only the query's stations are read
-    local = known.filter(
-        pl.col("station").is_in(query["station"].unique().implode())
+    # one collect for the first two groups: only the query's stations and runs are read
+    near = known.filter(
+        pl.col("station").is_in(query["station"].unique().implode()) | of_query_runs
     ).collect()
+    # the query's own runs today, at the stops they passed before now (not the query rows)
+    own = near.filter(of_query_runs).join(
+        query.select("run_id", "stop_num"), on=["run_id", "stop_num"], how="anti"
+    )
+    local = near.filter(~of_query_runs)
 
     pairs = query.select("train_key", "station").unique()
-    same_train = (
-        local.join(pairs, on=["train_key", "station"])
-        .sort("run_day", descending=True)  # the most recent days are the best match
-        .head(n_same_train)
-    )
+    same_train = pl.concat(
+        [
+            own.sort(
+                "stop_num", descending=True
+            ),  # the latest stops are the best match
+            local.join(pairs, on=["train_key", "station"]).sort(
+                "run_day",
+                descending=True,  # the most recent days are the best match
+            ),
+        ],
+        how="vertical",
+    ).head(n_same_train)
 
     # rows of the last 60 minutes before now: the latest known event happened then
     latest = pl.max_horizontal(actual_time("arr"), actual_time("dep"))
@@ -159,7 +169,9 @@ def build_context(
         how="vertical",
     )
 
-    general = _general_sample(stops, known, types, n_general, seed)
+    general = _general_sample(
+        stops, known.filter(~of_query_runs), types, n_general, seed
+    )
 
     context = pl.concat([same_train, same_slot, general], how="vertical")
     return context.unique(
