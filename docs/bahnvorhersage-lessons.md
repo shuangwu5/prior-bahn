@@ -4,8 +4,8 @@ Review of https://gitlab.com/bahnvorhersage/bahnvorhersage (read on October 4, 2
 `ml_models/` folder, `public_config.py` and `predictor_webserver/`. The router that calls their
 predictor was not read. Numbers about our data were measured on `data/processed/stops.parquet`.
 
-Nothing here is implemented yet. The resulting proposals are in `plan.md` and
-`data-prep-plan.md`, marked as proposed.
+Lessons 1 and 3 (date errors, train types) are done in `prep.py` (`data-prep-plan.md`, section 4).
+The other proposals are in `plan.md` and `data-prep-plan.md`, marked as proposed.
 
 ## 1. Their setup
 

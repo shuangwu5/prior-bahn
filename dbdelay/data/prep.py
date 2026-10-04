@@ -13,6 +13,20 @@ RAW = "data/monthly_processed_data/data-2026-{month}.parquet"
 MONTHS = ["08", "09"]
 OUT = Path("data/processed/stops.parquet")
 NON_TRAIN = "^(?:bus|sev|bsv)$"  # matched without regard to case
+# historic, special and one-off trains with no stable history, plus a few malformed
+# type labels, see docs/data-prep-plan.md section 4. UEX is kept: holiday night trains.
+DROP_TYPES = [
+    # historic and non-passenger
+    "DB", "PRE", "MBB", "P", "SDG", "DPN", "ÖBA", "KTB", "UEF",
+    # one-off specials and charters (1 to 40 days, few trains)
+    "DRC-L", "DRC", "CLB", "Bvs", "L-S", "DBK", "MSM", "RBP", "DRB-G", "SPNV", "SVG",
+    "LEO", "Sp",
+    # malformed labels of regular trains
+    "RE1", "RE 4", "2", ".",
+]  # fmt: skip
+# Delays and planned legs longer than this are date errors of one day in the source
+# (real values stay under 900 min, the errors are close to 1440)
+MAX_PLAUSIBLE_MIN = 1200
 
 # split by the day a run starts, see docs/plan.md
 FIRST_DAY, LAST_DAY = pd.Timestamp("2026-08-01"), pd.Timestamp("2026-09-30")
@@ -45,13 +59,24 @@ def minutes_between(later: pd.Series, earlier: pd.Series) -> pd.Series:
     return ((later - earlier).dt.total_seconds() / 60).astype("Int16")
 
 
+def null_date_errors(minutes: pd.Series) -> pd.Series:
+    """Set values that are off by about a day to <NA>.
+
+    The source sometimes has a planned or actual time on the wrong day. We cannot tell
+    which side is wrong, so the value is not fixed but left empty.
+    """
+    return minutes.where(minutes.abs() <= MAX_PLAUSIBLE_MIN)
+
+
 def load_month(month: str) -> pd.DataFrame:
     """Read one raw file, drop rows we never use and add run_id and run_day."""
     df = pd.read_parquet(RAW.format(month=month), columns=RAW_COLUMNS)
 
     # rows without a train type are dropped too (about 37k rows, none has a planned time)
-    is_train = df["train_type"].notna() & ~df["train_type"].str.contains(
-        NON_TRAIN, case=False, na=False
+    is_train = (
+        df["train_type"].notna()
+        & ~df["train_type"].str.contains(NON_TRAIN, case=False, na=False)
+        & ~df["train_type"].isin(DROP_TYPES)
     )
     has_planned_time = (
         df["arrival_planned_time"].notna() | df["departure_planned_time"].notna()
@@ -121,11 +146,13 @@ def build() -> pd.DataFrame:
             # delay_in_min is the delay of the row's own event (see the exploration
             # notebook), so both delays are recomputed from the time columns.
             # A canceled event has no usable delay, so it becomes <NA>.
-            "arr_delay": minutes_between(
-                df["arrival_change_time"], df["arrival_planned_time"]
+            "arr_delay": null_date_errors(
+                minutes_between(df["arrival_change_time"], df["arrival_planned_time"])
             ).where(~df["arrival_is_canceled"]),
-            "dep_delay": minutes_between(
-                df["departure_change_time"], df["departure_planned_time"]
+            "dep_delay": null_date_errors(
+                minutes_between(
+                    df["departure_change_time"], df["departure_planned_time"]
+                )
             ).where(~df["departure_is_canceled"]),
         }
     )
@@ -139,8 +166,8 @@ def build() -> pd.DataFrame:
     same_run = out["run_id"] == out["run_id"].shift()
     prev_is_adjacent = same_run & (out["stop_num"] - out["stop_num"].shift() == 1)
     out["prev_station"] = out["station"].shift().where(prev_is_adjacent)
-    out["run_planned_min"] = minutes_between(
-        out["planned_arr"], out["planned_dep"].shift()
+    out["run_planned_min"] = null_date_errors(
+        minutes_between(out["planned_arr"], out["planned_dep"].shift())
     ).where(prev_is_adjacent)
 
     out["dwell_planned_min"] = minutes_between(out["planned_dep"], out["planned_arr"])

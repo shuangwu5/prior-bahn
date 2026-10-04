@@ -91,8 +91,8 @@ Rules:
 - Evaluate on a sample of a few hundred requests (stratified by train type and hour) to limit API cost.
 
 # Status (October 4)
-Done: data prep (`dbdelay/data/prep.py`), router and Streamlit UI (`dbdelay/router`, `app/`), shared-context builder, feature lists and TabPFN predict step (`dbdelay/model`), smoke test.
-Not started: data-quality fixes, baselines, evaluation, change-in-delay model (sightings), route risk, delay model in the app.
+Done: data prep (`dbdelay/data/prep.py`) with the data-quality fixes, router and Streamlit UI (`dbdelay/router`, `app/`), shared-context builder, feature lists and TabPFN predict step (`dbdelay/model`), smoke test.
+Not started: baselines, evaluation, change-in-delay model (sightings), route risk, delay model in the app.
 
 # Schedule
 - October 3: data prep, router. Done.

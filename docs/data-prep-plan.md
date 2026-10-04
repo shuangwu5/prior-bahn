@@ -83,16 +83,25 @@ Canceled rows are **not dropped**. They stay in the table with a cancel label, b
 "will this stop be canceled" is part of the risk. They are excluded only from the delay-regression
 target.
 
-### Planned for October 4 (from the bahnvorhersage review, not in `prep.py` yet)
+### Data-quality rules (from the bahnvorhersage review, done in `prep.py` on October 4)
 
-Details and counts in `bahnvorhersage-lessons.md`, section 2.
+Details in `bahnvorhersage-lessons.md`, section 2.
 
 | Rule | Why | Size |
 |---|---|---|
-| Drop historic and non-passenger types: `DB`, `PRE`, `MBB`, `P`, `SDG`, `DPN`, `ÖBA`, `KTB`, `UEF` and similar. Keep `UEX` (holiday night trains, 272 rows) | Museum, steam and special trains, not useful for planning | about 17k rows |
-| Set `arr_delay` / `dep_delay` to null when the absolute value is over 1000 min | Date errors of one day, in the planned time (RB 13918) or the actual time just after midnight (erx 21043, erx 21088, SBH 34402). Not safely fixable | 15 delays |
-| Set `run_planned_min` to null when it is over 1300 min | Planned date one day late. Legs over 300 min are otherwise real night trains (NJ, DZ, UEX), so no lower bound | 7 legs |
-| Check arrivals more than 60 min early | Not yet known whether they are errors | 274 arrivals, 84 departures |
+| Drop historic and non-passenger types: `DB`, `PRE`, `MBB`, `P`, `SDG`, `DPN`, `ÖBA`, `KTB`, `UEF` | Museum, steam and special trains, not useful for planning | 15,884 rows |
+| Drop one-off specials and charters: `DRC-L`, `DRC`, `CLB`, `Bvs`, `L-S`, `DBK`, `MSM`, `RBP`, `DRB-G`, `SPNV`, `SVG`, `LEO`, `Sp` | Run on 1 to 40 days with few trains, no stable history | 1,322 rows |
+| Drop malformed type labels: `RE1`, `RE 4`, `2`, `.` | Regular trains with a broken type. Too few rows to be worth repairing | 34 rows |
+| Keep `UEX` | Holiday night trains with passengers | 272 rows |
+| Set `arr_delay` / `dep_delay` to null when the absolute value is over 1200 min | Date errors of one day, in the planned time (RB 13918) or the actual time just after midnight (erx 21043, erx 21088, SBH 34402). Not safely fixable | 15 delays |
+| Set `run_planned_min` to null when it is over 1200 min | Planned date one day late. Legs over 300 min are otherwise real night trains (NJ, DZ, UEX), so no lower bound | 7 legs |
+
+All type rules together remove 17,240 rows. One threshold (`MAX_PLAUSIBLE_MIN`) serves both null
+rules, because all these errors are one day off. Real values stay far below it (largest real delay
+840 min, largest real leg 570 min). Wrong values start at 1351 min.
+
+Still open: arrivals more than 60 min early (274 arrivals, 84 departures). Not yet known whether
+they are errors.
 
 The target is **not clipped**. The tail is needed for p95, route risk and transfers.
 
