@@ -12,7 +12,7 @@ import streamlit as st
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from dbdelay.router import core as rc
 
-DATA_MONTH = (date(2026, 9, 1), date(2026, 9, 30))
+DATA_MONTH = (date(2026, 8, 1), date(2026, 9, 30))
 
 
 @st.cache_resource(show_spinner="Building timetable for the day...")
@@ -45,7 +45,7 @@ def render_option(journey: list[rc.Leg]) -> None:
 
 st.set_page_config(page_title="Offline router", layout="centered")
 st.title("Offline router")
-st.caption("Train-only routes on the planned September 2026 timetable.")
+st.caption("Train-only routes on the planned August and September 2026 timetable.")
 
 with st.form("query"):
     day = st.date_input(

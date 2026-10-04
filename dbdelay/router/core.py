@@ -1,4 +1,4 @@
-"""Train-only routing on the dataset's own timetable, replayed against what actually happened."""
+"""Train-only routing on the stops table, replayed against what actually happened."""
 
 import bisect
 from dataclasses import dataclass
@@ -6,8 +6,7 @@ from datetime import date, datetime, timedelta
 
 import polars as pl
 
-PATH = "data/monthly_processed_data/data-2026-09.parquet"
-NON_TRAIN = r"(?i)^(bus|sev|bsv)$"
+PATH = "data/processed/stops.parquet"
 MIN_TRANSFER_MIN = 5
 INF = 10**12
 
@@ -32,78 +31,80 @@ class Transfer:
 @dataclass
 class Leg:
     label: str
+    run_id: str
     from_station: str
+    from_stop_num: int
     dep: datetime
     dep_delay: int | None
     to_station: str
+    to_stop_num: int
     arr: datetime
     arr_delay: int | None
     stops: list[str]
     transfer_before: Transfer | None
 
 
-def dropped_non_train(path: str = PATH) -> pl.DataFrame:
-    return (
-        pl.scan_parquet(path)
-        .filter(pl.col("train_type").str.contains(NON_TRAIN))
-        .group_by("train_type")
-        .len()
-        .collect()
-    )
+def actual(planned: str, delay: str) -> pl.Expr:
+    """Actual time from the planned time and the delay in minutes (null if canceled)."""
+    return pl.col(planned) + pl.duration(minutes=pl.col(delay))
 
 
 def load_timetable(day: date, path: str = PATH) -> Timetable:
+    """Connections between consecutive stops of each run, from the stops table.
+
+    Stations are the merged station names of the stops table, so every leg of a route
+    matches rows the delay model can predict.
+    """
     day_start = datetime.combine(day, datetime.min.time())
     stops = (
         pl.scan_parquet(path)
-        .filter(~pl.col("train_type").str.contains(NON_TRAIN))
-        .with_columns(
-            pl.col("id").str.extract(r"^(.*)-\d+$", 1).alias("run_id"),
-            # a few stations have no name anywhere in the month, keep them by EVA code
-            pl.col("station_name").fill_null("EVA " + pl.col("eva")),
+        # runs of the day before can still be running, and routes of a late request
+        # continue after midnight on runs of the next day
+        .filter(
+            pl.col("run_day").is_between(
+                day - timedelta(days=1), day + timedelta(days=1)
+            )
         )
         .filter(
-            pl.coalesce("departure_planned_time", "arrival_planned_time").is_between(
+            pl.coalesce("planned_dep", "planned_arr").is_between(
                 day_start - timedelta(hours=12), day_start + timedelta(hours=36)
             )
         )
-        .sort("run_id", "train_line_station_num")
+        .sort("run_id", "stop_num")
         .with_columns(
-            pl.col("station_name").shift(-1).over("run_id").alias("next_station"),
-            pl.col("arrival_planned_time")
-            .shift(-1)
-            .over("run_id")
-            .alias("next_arr_planned"),
-            pl.col("arrival_change_time")
-            .shift(-1)
-            .over("run_id")
-            .alias("next_arr_actual"),
-            pl.col("arrival_is_canceled")
-            .shift(-1)
-            .over("run_id")
-            .alias("next_arr_canceled"),
+            *(
+                pl.col(c).shift(-1).over("run_id").alias(f"next_{c}")
+                for c in [
+                    "station",
+                    "stop_num",
+                    "planned_arr",
+                    "arr_delay",
+                    "arr_canceled",
+                ]
+            )
         )
     )
     conns = (
         stops.filter(
-            pl.col("departure_planned_time").is_not_null()
-            & pl.col("next_arr_planned").is_not_null()
-            & (pl.col("next_arr_planned") >= pl.col("departure_planned_time"))
-            & (pl.col("departure_planned_time") >= day_start)
+            pl.col("planned_dep").is_not_null()
+            & pl.col("next_planned_arr").is_not_null()
+            & (pl.col("next_planned_arr") >= pl.col("planned_dep"))
+            & (pl.col("planned_dep") >= day_start)
         )
-        .sort("departure_planned_time")
+        .sort("planned_dep")
         .select(
             "run_id",
-            "train_type",
-            "train_number",
+            "train_key",
             "line_number",
-            "station_name",
+            "station",
+            "stop_num",
             "next_station",
-            pl.col("departure_planned_time").alias("dep"),
-            pl.col("departure_change_time").alias("dep_actual"),
-            pl.col("departure_is_canceled").alias("dep_canceled"),
-            pl.col("next_arr_planned").alias("arr"),
-            pl.col("next_arr_actual").alias("arr_actual"),
+            "next_stop_num",
+            pl.col("planned_dep").alias("dep"),
+            actual("planned_dep", "dep_delay").alias("dep_actual"),
+            pl.col("dep_canceled"),
+            pl.col("next_planned_arr").alias("arr"),
+            actual("next_planned_arr", "next_arr_delay").alias("arr_actual"),
             pl.col("next_arr_canceled").alias("arr_canceled"),
         )
         .collect()
@@ -117,7 +118,7 @@ def load_timetable(day: date, path: str = PATH) -> Timetable:
         conns=C,
         deps=[c["dep"] for c in C],
         run_conns=run_conns,
-        stations=sorted(set(conns["station_name"]) | set(conns["next_station"])),
+        stations=sorted(set(conns["station"]) | set(conns["next_station"])),
     )
 
 
@@ -125,7 +126,7 @@ def stops_between(tt: Timetable, enter: int, leave: int) -> list[str]:
     C = tt.conns
     idx = tt.run_conns[C[enter]["run_id"]]
     seg = idx[idx.index(enter) : idx.index(leave) + 1]
-    return [C[i]["station_name"] for i in seg] + [C[leave]["next_station"]]
+    return [C[i]["station"] for i in seg] + [C[leave]["next_station"]]
 
 
 def earliest_arrival(
@@ -147,7 +148,7 @@ def earliest_arrival(
         c = C[i]
         if c["dep"] > best.get(dst, far):
             break
-        run, u, v = c["run_id"], c["station_name"], c["next_station"]
+        run, u, v = c["run_id"], c["station"], c["next_station"]
         ready = best.get(u)
         if (
             ready is not None
@@ -170,7 +171,7 @@ def earliest_arrival(
     while stop != src:
         enter, leave = via[stop]
         legs.append((enter, leave))
-        stop = C[enter]["station_name"]
+        stop = C[enter]["station"]
     return legs[::-1]
 
 
@@ -185,9 +186,7 @@ def replay(tt: Timetable, legs: list[tuple[int, int]]) -> list[Leg]:
     prev = None
     for enter, leave in legs:
         a, b = C[enter], C[leave]
-        label = f"{a['train_type']} {a['train_number']}" + (
-            f" ({a['line_number']})" if a["line_number"] else ""
-        )
+        label = a["train_key"] + (f" ({a['line_number']})" if a["line_number"] else "")
         transfer = None
         if prev is not None:
             status = "?"
@@ -200,7 +199,7 @@ def replay(tt: Timetable, legs: list[tuple[int, int]]) -> list[Leg]:
                     else "MISSED"
                 )
             transfer = Transfer(
-                station=a["station_name"],
+                station=a["station"],
                 planned_min=delay(prev["arr"], a["dep"]),
                 actual_min=delay(prev["arr_actual"], a["dep_actual"])
                 if prev["arr_actual"] is not None
@@ -210,10 +209,13 @@ def replay(tt: Timetable, legs: list[tuple[int, int]]) -> list[Leg]:
         out.append(
             Leg(
                 label=label,
-                from_station=a["station_name"],
+                run_id=a["run_id"],
+                from_station=a["station"],
+                from_stop_num=a["stop_num"],
                 dep=a["dep"],
                 dep_delay=delay(a["dep"], a["dep_actual"]),
                 to_station=b["next_station"],
+                to_stop_num=b["next_stop_num"],
                 arr=b["arr"],
                 arr_delay=delay(b["arr"], b["arr_actual"]),
                 stops=stops_between(tt, enter, leave),

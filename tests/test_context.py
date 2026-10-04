@@ -80,7 +80,9 @@ def made_up_stops(rows: list[tuple]) -> pl.DataFrame:
         station=pl.lit("S"),
         stop_num=pl.lit(1, pl.Int32),
         arr_hour=pl.col("planned_arr").dt.hour().cast(pl.Float64),
+        arr_minute=pl.col("planned_arr").dt.minute().cast(pl.Float64),
         dep_hour=pl.col("planned_dep").dt.hour().cast(pl.Float64),
+        dep_minute=pl.col("planned_dep").dt.minute().cast(pl.Float64),
         weekday=planned.dt.weekday().cast(pl.UInt8),  # 1 is Monday
     )
 
@@ -89,20 +91,22 @@ def at(day: date, hour: int, minute: int = 0) -> datetime:
     return datetime.combine(day, time(hour, minute))
 
 
-def test_hour_window_wraps_at_midnight():
-    # query on a Sunday at 23:xx, by a train that is not in the context
-    query = made_up_stops([("q", DAY, "RE 9", None, at(DAY, 23, 30), None, None)])
-    sunday, monday = DAY - timedelta(days=7), DAY - timedelta(days=6)
+def test_window_wraps_at_midnight():
+    # query on a Sunday at 00:20, by a train that is not in the context: the window is
+    # Saturday 23:20 to 23:59 and Sunday 00:00 to 00:19
+    query = made_up_stops([("q", DAY, "RE 9", None, at(DAY, 0, 20), None, None)])
+    saturday, sunday = DAY - timedelta(days=8), DAY - timedelta(days=7)
     stops = made_up_stops(
         [
-            ("next day 00h", monday, "RE 1", None, at(monday, 0, 10), None, 0),
-            ("same day 22h", sunday, "RE 1", None, at(sunday, 22, 10), None, 0),
-            ("same day 00h", sunday, "RE 1", None, at(sunday, 0, 10), None, 0),
-            ("next day 01h", monday, "RE 1", None, at(monday, 1, 10), None, 0),
+            ("saturday 23:30", saturday, "RE 1", None, at(saturday, 23, 30), None, 0),
+            ("sunday 00:10", sunday, "RE 1", None, at(sunday, 0, 10), None, 0),
+            ("saturday 23:10", saturday, "RE 1", None, at(saturday, 23, 10), None, 0),
+            ("sunday 23:30", sunday, "RE 1", None, at(sunday, 23, 30), None, 0),
+            ("sunday 00:25", sunday, "RE 1", None, at(sunday, 0, 25), None, 0),
         ]
     ).lazy()
     context = build_context(stops, query, DAY, 10, (0, 1, 0))
-    assert sorted(context["run_id"]) == ["next day 00h", "same day 22h"]
+    assert sorted(context["run_id"]) == ["saturday 23:30", "sunday 00:10"]
 
 
 def test_no_event_on_the_query_day_leaks():

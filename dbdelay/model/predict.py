@@ -34,25 +34,34 @@ def predict_delays(
     model: str,
     quantiles: list[float] = QUANTILES,
     local: bool = False,
+    extra: tuple[str, ...] = (),
 ) -> pl.DataFrame:
     """Quantiles of the `model` delay ("arr" or "dep") for every query row.
+
+    `extra` names feature columns used on top of the standard list, such as "days_ago"
+    (see `features.with_days_ago`); both frames must have them.
 
     Query rows keep their order. Rows where the model's event does not exist (the arrival
     at a first stop, the departure at a last stop) have no input, and get null quantiles.
     """
     has_event = query[EVENTS[model]["numeric"][0]].is_not_null()
     rows = query.filter(has_event)
+    if rows.is_empty():  # e.g. a run with one stop in the data has no arrival
+        return pl.DataFrame(
+            {f"q{round(q * 100)}": [None] * len(query) for q in quantiles},
+            schema={f"q{round(q * 100)}": pl.Float64 for q in quantiles},
+        )
     train = usable_rows(context, model)
 
     categories = shared_categories(train, rows)
     reg = regressor(local)
     reg.fit(
-        to_frame(train, model, categories),
+        to_frame(train, model, categories, extra),
         train[EVENTS[model]["target"]].to_numpy().astype(float),
     )
     # the client needs plain Python floats for the quantile levels
     out = reg.predict(
-        to_frame(rows, model, categories),
+        to_frame(rows, model, categories, extra),
         output_type="quantiles",
         quantiles=[float(q) for q in quantiles],
     )
