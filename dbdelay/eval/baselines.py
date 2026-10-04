@@ -1,10 +1,12 @@
 """Count-based baselines: empirical delay quantiles from the full history.
 
 For query rows of day D, the history is every usable row of a run day before D (from
-Aug 1), the same rule as the TabPFN context. Each baseline returns the same frame as
+Aug 1) whose events all happen before D starts, the same rule as the TabPFN context. Each baseline returns the same frame as
 `dbdelay.model.predict.predict_delays`: q50, q80, q95 per query row, in query order,
 null where the model's event does not exist.
 """
+
+from datetime import datetime, time
 
 import polars as pl
 
@@ -21,10 +23,22 @@ def _quantiles(target: str) -> list[pl.Expr]:
     ] + [pl.len().alias("count")]
 
 
+def _last_event_time() -> pl.Expr:
+    """Latest planned or actual (planned + delay) time of the row's arrival and departure."""
+    return pl.max_horizontal(
+        "planned_arr",
+        "planned_dep",
+        pl.col("planned_arr") + pl.duration(minutes=pl.col("arr_delay")),
+        pl.col("planned_dep") + pl.duration(minutes=pl.col("dep_delay")),
+    )
+
+
 def _history(stops: pl.LazyFrame, day, model: str) -> pl.LazyFrame:
     event = EVENTS[model]
     return stops.filter(
         pl.col("run_day") < pl.lit(day),
+        # a run of an earlier day can go past midnight: keep its events of day D out
+        _last_event_time() < datetime.combine(day, time()),
         pl.col(event["target"]).is_not_null(),
         ~pl.col(event["canceled"]),
     ).with_columns(pl.col(event["target"]).cast(pl.Float64))
