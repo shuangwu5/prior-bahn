@@ -89,7 +89,7 @@ Details and counts in `bahnvorhersage-lessons.md`, section 2.
 
 | Rule | Why | Size |
 |---|---|---|
-| Drop historic and non-passenger types: `DB`, `PRE`, `MBB`, `P`, `SDG`, `UEX`, `DPN`, `ÖBA`, `KTB`, `UEF` and similar | Museum, steam and special trains, not useful for planning | about 17k rows |
+| Drop historic and non-passenger types: `DB`, `PRE`, `MBB`, `P`, `SDG`, `DPN`, `ÖBA`, `KTB`, `UEF` and similar. Keep `UEX` (holiday night trains, 272 rows) | Museum, steam and special trains, not useful for planning | about 17k rows |
 | Set `arr_delay` / `dep_delay` to null when the absolute value is over 1000 min | Date errors of one day, in the planned time (RB 13918) or the actual time just after midnight (erx 21043, erx 21088, SBH 34402). Not safely fixable | 15 delays |
 | Set `run_planned_min` to null when it is over 1300 min | Planned date one day late. Legs over 300 min are otherwise real night trains (NJ, DZ, UEX), so no lower bound | 7 legs |
 | Check arrivals more than 60 min early | Not yet known whether they are errors | 274 arrivals, 84 departures |
@@ -253,9 +253,9 @@ then predicts the delay itself, from the timetable and from how this train usual
 | Column | Meaning |
 |---|---|
 | `seen_delay` | Delay where we last saw the train before t. Empty if not seen yet |
-| `seen_stop_num` | Stop where we last saw it. Empty if not seen yet |
+| `seen_stop_num` | Stop where we last saw it, as a stop index (see the rules below). Empty if not seen yet |
 | `horizon_min` | Scheduled travel time from the last sighting to the target stop. Empty if not seen yet |
-| `stops_ahead` | Number of stops from the last sighting to the target stop. Empty if not seen yet |
+| `stops_ahead` | Number of stops from the last sighting to the target stop, by stop index (0 for a departure seen from its own arrival). Empty if not seen yet |
 | `delay_change` | The target: delay at the target stop minus `seen_delay`, or the delay itself if not seen yet |
 
 "Seen" means an arrival or departure with an actual time before t. A departure can also be predicted
@@ -278,10 +278,17 @@ the target stop come from `stops` unchanged.
     the rows we predict, plus some rows with no sighting for the trains that have not started.
 - Actual times are scheduled time plus delay, so `stops` needs no new columns. Canceled stops have
   no actual time and never count as a sighting.
-- Leak rule: a sighting must be an earlier stop of the same run, with an actual time before t.
+- Leak rule: a sighting must be an event of the same run with an actual time before t, at an
+  earlier stop than the target. The one exception: to predict a departure, the arrival at the same
+  stop also counts.
   Context rows come only from the context-pool days, as before.
 - The section 4 date-error rules come first. A wrong `seen_delay` breaks both an input and the
   target.
-- Missing stop numbers (about 4% of runs) do not matter here, since the horizon comes from times.
+- Missing stop numbers (about 4% of runs) do not change `horizon_min`, which comes from times. They
+  do change `seen_stop_num` and `stops_ahead`: with raw stop numbers, `stops_ahead` also counts the
+  stops that have no row, and the same stop of one train can get a different number on another
+  day. So both columns use a stop index instead: the stops of each run numbered 1, 2, 3, ... in
+  order of planned time. `stops_ahead` then counts the stops in our data between the sighting and
+  the target.
 - To test on the validation week: one shared context for both kinds of rows (the default) against
   separate contexts for seen and not-seen rows.

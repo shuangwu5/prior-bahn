@@ -61,8 +61,12 @@ Nothing here is implemented yet. The resulting proposals are in `plan.md` and
 `SinglePredictor.calculate_transfer_scores` computes P(transfer works) analytically from the two
 discrete distributions, assuming the arriving and the departing delay are independent:
 
-P(arr <= buffer) + sum over a of P(arr = a) * P(dep >= a - buffer),
+P(arr <= buffer) + sum over a > buffer of P(arr = a) * P(dep >= a - buffer),
 with buffer = planned gap - minimum transfer time.
+
+The sum covers only a > buffer: the cases a <= buffer are in the first term already. If trains
+never depart early, the same value is the sum over all a of P(arr = a) * P(dep >= a - buffer),
+without the first term.
 
 Because their distribution stops at +30, a large arrival delay can never be caught, so transfers
 with a short buffer come out too pessimistic.
@@ -84,7 +88,8 @@ with a short buffer come out too pessimistic.
    60 min early. These are not checked yet.
 2. **Do not clip the target.** We need the tail for p95, route risk and transfers.
 3. **Drop historic and odd train types:** `DB` (10,832 rows), `PRE` (1,876), `MBB` (1,305), `P`,
-   `SDG`, `UEX`, `DPN`, `ÖBA`, `KTB`, `UEF` and similar. About 17k rows in total.
+   `SDG`, `DPN`, `ÖBA`, `KTB`, `UEF` and similar. About 17k rows in total. Keep `UEX`: these are
+   holiday night trains with passengers (272 rows, 8 legs over 300 min, see lesson 1).
 4. **One `minute_of_day` per event** instead of separate hour and minute columns.
 5. **Geography:** station `lat` and `lon`, `distance_traveled` and `bearing`. They generalize to
    stations or trains that are missing from a request's context, and `bearing` gives the direction

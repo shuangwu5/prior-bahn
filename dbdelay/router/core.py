@@ -17,7 +17,7 @@ class Timetable:
     conns: list[dict]
     deps: list[datetime]
     run_conns: dict[str, list[int]]
-    stations: list[str]
+    stations: list[str]  # names, a station with several EVA codes is one stop
 
 
 @dataclass
@@ -118,7 +118,7 @@ def load_timetable(day: date, path: str = PATH) -> Timetable:
         conns=C,
         deps=[c["dep"] for c in C],
         run_conns=run_conns,
-        stations=sorted(conns["station"].unique()),
+        stations=sorted(set(conns["station"]) | set(conns["next_station"])),
     )
 
 
@@ -132,7 +132,11 @@ def stops_between(tt: Timetable, enter: int, leave: int) -> list[str]:
 def earliest_arrival(
     tt: Timetable, src: str, dst: str, depart_at: datetime
 ) -> list[tuple[int, int]] | None:
-    """Connection scan: returns legs as (boarding connection, alighting connection) index pairs."""
+    """Connection scan: returns legs as (boarding connection, alighting connection) index pairs.
+
+    Stops are station names, as in prep.py: big stations have several EVA codes (main
+    line and S-Bahn), and a journey may start, end or change trains at any of them.
+    """
     C = tt.conns
     best = {src: depart_at}
     via: dict[str, tuple[int, int]] = {}

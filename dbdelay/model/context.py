@@ -9,7 +9,7 @@ S-Bahn delays behave differently from those of other trains. When no query train
 S-Bahn, S-Bahn rows are left out of the second and third group.
 """
 
-from datetime import date
+from datetime import date, datetime, time
 
 import polars as pl
 
@@ -36,6 +36,16 @@ def with_minute_of_day(
     )
 
 
+def last_event_time() -> pl.Expr:
+    """Latest planned or actual (planned + delay) time of the row's arrival and departure."""
+    return pl.max_horizontal(
+        "planned_arr",
+        "planned_dep",
+        pl.col("planned_arr") + pl.duration(minutes=pl.col("arr_delay")),
+        pl.col("planned_dep") + pl.duration(minutes=pl.col("dep_delay")),
+    )
+
+
 def build_context(
     stops: pl.LazyFrame,
     query: pl.DataFrame,
@@ -47,8 +57,10 @@ def build_context(
 ) -> pl.DataFrame:
     """Context rows for `query` (rows of the stops table), using only run days before `day`.
 
-    Rows of the query's own runs are excluded, since a run that started the evening before
-    can still be running on `day`.
+    A run that started the evening before can still be running on `day`. So a row is kept
+    only if all its events, planned and actual, happened before `day` began: what happened
+    after the query time must not leak into the context. Rows of the query's own runs are
+    excluded too.
     """
     # filter for the second and third group, see the module docstring
     others = (
@@ -59,6 +71,7 @@ def build_context(
     n_same_train, n_same_slot, n_general = (round(size * s) for s in shares)
     before = (
         stops.filter(pl.col("run_day") < pl.lit(day))
+        .filter(last_event_time() < datetime.combine(day, time()))
         .filter(~pl.col("run_id").is_in(query["run_id"].unique().implode()))
         .pipe(with_minute_of_day)
     )
