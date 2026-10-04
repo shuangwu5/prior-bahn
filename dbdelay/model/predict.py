@@ -42,6 +42,11 @@ def predict_delays(
     """
     has_event = query[EVENTS[model]["numeric"][0]].is_not_null()
     rows = query.filter(has_event)
+    if rows.is_empty():  # e.g. a run with one stop in the data has no arrival
+        return pl.DataFrame(
+            {f"q{round(q * 100)}": [None] * len(query) for q in quantiles},
+            schema={f"q{round(q * 100)}": pl.Float64 for q in quantiles},
+        )
     train = usable_rows(context, model)
 
     categories = shared_categories(train, rows)
