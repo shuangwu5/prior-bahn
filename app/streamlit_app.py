@@ -12,7 +12,7 @@ import streamlit as st
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from dbdelay.router import core as rc
 
-DATA_MONTH = (date(2026, 9, 1), date(2026, 9, 30))
+DATA_MONTH = (date(2026, 8, 1), date(2026, 9, 30))
 
 
 @st.cache_resource(show_spinner="Building timetable for the day...")
@@ -45,7 +45,7 @@ def render_option(journey: list[rc.Leg]) -> None:
 
 st.set_page_config(page_title="Offline router", layout="centered")
 st.title("Offline router")
-st.caption("Train-only routes on the planned September 2026 timetable.")
+st.caption("Train-only routes on the planned August and September 2026 timetable.")
 
 with st.form("query"):
     day = st.date_input(
@@ -54,7 +54,7 @@ with st.form("query"):
         min_value=DATA_MONTH[0],
         max_value=DATA_MONTH[1],
     )
-    stations = sorted(get_timetable(day).station_eva)
+    stations = get_timetable(day).stations
     col_from, col_to = st.columns(2)
     src_name = col_from.selectbox(
         "From", stations, index=stations.index("Heidelberg Hbf")
@@ -70,13 +70,12 @@ if submitted:
     if src_name == dst_name:
         st.warning("Pick two different stations.")
         st.stop()
-    src, dst = tt.station_eva[src_name], tt.station_eva[dst_name]
     depart = tt.day_start + timedelta(
         hours=depart_time.hour, minutes=depart_time.minute
     )
     found = 0
     for _ in range(n_options):
-        legs = rc.earliest_arrival(tt, src, dst, depart)
+        legs = rc.earliest_arrival(tt, src_name, dst_name, depart)
         if legs is None:
             break
         journey = rc.replay(tt, legs)
