@@ -2,10 +2,12 @@
 
 The context is made of rows of the stops table from days before the request day, in
 three groups: the same train at the same station, other trains at those stations around
-the same hour and weekday, and a small general sample. The same context serves both the
+the same hour and weekday, and a small general sample from all stations, split evenly
+over the train types of the query. The same context serves both the
 arrival model and the departure model.
 """
 
+import math
 from datetime import date, datetime, time
 
 import polars as pl
@@ -13,10 +15,11 @@ import polars as pl
 DEFAULT_SIZE = 2000
 DEFAULT_SHARES = (0.4, 0.4, 0.2)  # same train, same station and time, general
 HOUR_WINDOW = 1  # hours either side of the query hour
-# The general group is a random sample of the whole pool (about 28M rows). To avoid loading
-# all of it, we first keep only the runs whose hashed run_id falls in this many per mille
-# (2 per mille is about 50k rows), then sample the final rows from those.
-GENERAL_HASH_SHARE = 2
+# The general group is split evenly over the train types of the query. To avoid loading
+# all rows of a type (S-Bahn alone has about 13M), we first keep only the runs whose hashed
+# run_id falls under a per mille share chosen per type, so that each type gives about this
+# many rows. Then the final rows are sampled from those.
+GENERAL_POOL_ROWS_PER_TYPE = 5000
 
 
 def with_hour(lf: pl.LazyFrame | pl.DataFrame) -> pl.LazyFrame | pl.DataFrame:
@@ -95,18 +98,58 @@ def build_context(
         local.join(slots, on=["station", "weekday", "hour"]), n_same_slot, seed
     )
 
-    # hash() turns each run_id into a fixed integer, so "hash % 1000 < 2" keeps the same
-    # ~0.2% of runs on every call and drops the rest while scanning. Whole runs are kept or
-    # dropped, and the kept runs are spread over all days (no head(), the file is day-sorted).
-    general_pool = before.filter(
-        pl.col("run_id").hash(seed) % 1000 < GENERAL_HASH_SHARE
-    ).collect()
-    general = _sample(general_pool, n_general, seed)
+    general = _general_sample(stops, before, query, n_general, seed)
 
     context = pl.concat([same_train, same_slot, general], how="vertical")
     return context.unique(
         ["run_id", "stop_num"], keep="first", maintain_order=True
     ).drop("hour")
+
+
+def _general_sample(
+    stops: pl.LazyFrame, before: pl.LazyFrame, query: pl.DataFrame, n: int, seed: int
+) -> pl.DataFrame:
+    """`n` rows from all stations, split evenly over the train types of the query.
+
+    A uniform sample would be about half S-Bahn whatever the request is about, since
+    S-Bahn has 46% of all rows. Here each train type of the request gets the same number
+    of rows, so a rare type like NJ gets as many as S.
+    """
+    if n == 0:
+        return before.head(0).collect()
+    types = sorted(query["train_type"].unique().drop_nulls())
+    if not types:
+        return before.head(0).collect()
+    of_types = pl.col("train_type").is_in(types)
+
+    # per mille of runs to keep per type, so that each type gives about
+    # GENERAL_POOL_ROWS_PER_TYPE rows (all runs of a type with fewer rows)
+    counts = stops.filter(of_types).group_by("train_type").len().collect()
+    per_mille = {
+        t: min(1000, max(1, math.ceil(1000 * GENERAL_POOL_ROWS_PER_TYPE / n_rows)))
+        for t, n_rows in counts.rows()
+    }
+    # hash() turns each run_id into a fixed integer, so "hash % 1000 < per_mille" keeps the
+    # same runs on every call and drops the rest while scanning. Whole runs are kept or
+    # dropped, and the kept runs are spread over all days (no head(), the file is day-sorted).
+    # A plain filter (not a join) keeps this a scan-time filter.
+    pool = before.filter(
+        of_types,
+        pl.col("run_id").hash(seed) % 1000
+        < pl.col("train_type").replace_strict(
+            per_mille, default=0, return_dtype=pl.UInt64
+        ),
+    ).collect()
+
+    # n split evenly, the first types get one row more when n does not divide
+    quota, extra = divmod(n, len(types))
+    return pl.concat(
+        [
+            _sample(pool.filter(pl.col("train_type") == t), quota + (i < extra), seed)
+            for i, t in enumerate(types)
+        ],
+        how="vertical",
+    )
 
 
 def _sample(df: pl.DataFrame, n: int, seed: int) -> pl.DataFrame:

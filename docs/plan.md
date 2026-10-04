@@ -51,7 +51,7 @@ Facts from the September file (14.8M stop events, 5,284 stations):
    - The context is built from the stations and trains on the candidate routes (at most 5 routes), only from days before the request day:
      - same train at the same station (closest match)
      - other trains at those stations around the same hour and weekday
-     - a small general sample for the overall delay shape
+     - a small general sample from all stations, split evenly over the train types of the request. A uniform sample would be about half S-Bahn (46% of all rows), whatever the request is about. The stops table itself is not subsampled: the router and the evaluation need all runs
    - Starting point: about 2k context rows, split roughly 40% / 40% / 20% across the three groups. Both the size and the split are settings to tune on the validation week.
    - Measured on a Mac with local weights (10 query rows): about 5 s per call at 1k context rows, 17 s at 3k, 95 s at 10k. API timing is not measured yet.
 4. Route risk

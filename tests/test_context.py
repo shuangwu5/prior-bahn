@@ -57,7 +57,8 @@ def made_up_stops(rows: list[tuple]) -> pl.DataFrame:
     """A small stops table with the columns build_context reads, one row per stop.
 
     Each row is (run_id, run_day, train_key, planned_arr, planned_dep, arr_delay,
-    dep_delay). All rows are at station "S". Hours and weekday follow prep.py.
+    dep_delay). All rows are at station "S". The train type is the first word of
+    train_key. Hours and weekday follow prep.py.
     """
     df = pl.DataFrame(
         rows,
@@ -75,6 +76,7 @@ def made_up_stops(rows: list[tuple]) -> pl.DataFrame:
     planned = pl.coalesce("planned_dep", "planned_arr")
     return df.with_columns(
         run_day=pl.col("run_day").cast(pl.Datetime("ns")),
+        train_type=pl.col("train_key").str.split(" ").list.first(),
         station=pl.lit("S"),
         stop_num=pl.lit(1, pl.Int32),
         arr_hour=pl.col("planned_arr").dt.hour().cast(pl.Float64),
@@ -126,6 +128,33 @@ def test_no_event_on_the_query_day_leaks():
     ).lazy()
     context = build_context(stops, query, DAY, 10, (1, 0, 0))
     assert sorted(context["run_id"]) == ["before midnight", "earlier day"]
+
+
+def test_general_group_is_split_evenly_over_query_train_types():
+    # S-Bahn has ten times more rows than NJ, ICE is not in the query
+    query = made_up_stops(
+        [
+            ("q1", DAY, "S 1", None, at(DAY, 8), None, None),
+            ("q2", DAY, "NJ 40", None, at(DAY, 22), None, None),
+        ]
+    )
+    earlier = DAY - timedelta(days=3)
+    stops = made_up_stops(
+        [(f"s{i}", earlier, "S 2", None, at(earlier, 9), None, 0) for i in range(40)]
+        + [
+            (f"n{i}", earlier, "NJ 41", None, at(earlier, 21), None, 5)
+            for i in range(4)
+        ]
+        + [
+            (f"i{i}", earlier, "ICE 5", None, at(earlier, 12), None, 1)
+            for i in range(4)
+        ]
+    ).lazy()
+    context = build_context(stops, query, DAY, 8, (0, 0, 1))
+    assert context["train_type"].value_counts().sort("train_type").rows() == [
+        ("NJ", 4),
+        ("S", 4),
+    ]
 
 
 @pytest.mark.parametrize("model", ["arr", "dep"])
