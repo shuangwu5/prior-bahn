@@ -103,6 +103,31 @@ def test_hour_window_wraps_at_midnight():
     assert sorted(context["run_id"]) == ["next day 00h", "same day 22h"]
 
 
+def test_no_event_on_the_query_day_leaks():
+    # query at 00:30, at the same station and by the same train as the context rows
+    query = made_up_stops([("q", DAY, "RE 1", None, at(DAY, 0, 30), None, None)])
+    eve = DAY - timedelta(days=1)
+    stops = made_up_stops(
+        [
+            (
+                "earlier day",
+                eve - timedelta(days=1),
+                "RE 1",
+                None,
+                at(eve, 10),
+                None,
+                5,
+            ),
+            ("planned after midnight", eve, "RE 1", None, at(DAY, 1), None, 0),
+            ("late after midnight", eve, "RE 1", None, at(eve, 23, 55), None, 10),
+            ("late arrival", eve, "RE 1", at(eve, 23, 50), None, 15, None),
+            ("before midnight", eve, "RE 1", at(eve, 23, 40), at(eve, 23, 45), 2, 3),
+        ]
+    ).lazy()
+    context = build_context(stops, query, DAY, 10, (1, 0, 0))
+    assert sorted(context["run_id"]) == ["before midnight", "earlier day"]
+
+
 @pytest.mark.parametrize("model", ["arr", "dep"])
 def test_features_share_categories(stops, query, model):
     context = build_context(stops, query, DAY, size=500)
