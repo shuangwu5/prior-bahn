@@ -120,6 +120,5 @@ Not done: the gradient-boosted baseline (written, too slow to run), "the delay s
 
 # Open points
 - Read the judging criteria on the hackathon page (it could not be fetched automatically).
-- Check API pricing with `estimate_cost()` before running the evaluation.
 - Decide which of the remaining proposals from `docs/bahnvorhersage-lessons.md` to adopt (evaluation additions above, geography features in `docs/data-prep-plan.md`, section 6).
 - The router only uses trains planned at or after "now". A late train planned before "now" may still be catchable (example: ICE 1205 on September 20, planned to leave Berlin Hbf at 13:56, 18 min late). Decide whether the router should offer such trains.
