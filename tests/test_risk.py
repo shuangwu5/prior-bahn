@@ -1,4 +1,5 @@
-"""Checks of the transfer levels and the route ranking on made-up legs.
+"""
+Checks of the transfer levels and the route ranking on made-up legs.
 
 uv run --no-sync pytest tests/test_risk.py
 """
@@ -8,7 +9,7 @@ from datetime import date, datetime, time
 import polars as pl
 import pytest
 
-from dbdelay import risk
+from priorbahn import risk
 
 
 def at(hour: int, minute: int = 0) -> datetime:
@@ -41,7 +42,9 @@ LEGS = pl.DataFrame(
 
 
 def legs_with(q50: float, q80: float, q95: float) -> pl.DataFrame:
-    """The legs, with the given arrival delays at B and small ones elsewhere."""
+    """
+    The legs, with the given arrival delays at B and small ones elsewhere.
+    """
     pred = pl.DataFrame(
         {
             "request_id": [1, 1, 1],
@@ -65,11 +68,13 @@ def legs_with(q50: float, q80: float, q95: float) -> pl.DataFrame:
         (9, 12, 15, 4),
     ],
 )
-def test_transfer_level_depends_on_the_room_at_each_quantile(q50, q80, q95, level):
+def test_transfer_level_depends_on_the_room_at_each_quantile(
+    q50: int, q80: int, q95: int, level: int
+) -> None:
     assert risk.transfers(legs_with(q50, q80, q95))["level"].to_list() == [level]
 
 
-def test_routes_rank_by_arrival_then_transfers():
+def test_routes_rank_by_arrival_then_transfers() -> None:
     # route 0 arrives earlier at q80 (15:02 against 15:07), so it comes first despite its
     # transfer; the transfer level does not change the order
     for q in [(9, 12, 15), (1, 4, 8)]:
@@ -80,7 +85,7 @@ def test_routes_rank_by_arrival_then_transfers():
         ]
 
 
-def test_routes_arriving_at_the_same_time_rank_by_transfers():
+def test_routes_arriving_at_the_same_time_rank_by_transfers() -> None:
     # route 1 (direct) is delayed to the same 80% arrival as route 0: fewer transfers win
     pred = pl.DataFrame(
         {
@@ -96,7 +101,7 @@ def test_routes_arriving_at_the_same_time_rank_by_transfers():
     assert ranked.select("route", "rank").rows() == [(1, 1), (0, 2)]
 
 
-def test_routes_with_the_same_transfers_rank_by_arrival():
+def test_routes_with_the_same_transfers_rank_by_arrival() -> None:
     # two direct routes: the one arriving later is planned to arrive first, but its
     # predicted delay makes it 10 min later at the 80% level
     legs = pl.DataFrame(
@@ -121,7 +126,7 @@ def test_routes_with_the_same_transfers_rank_by_arrival():
     assert ranked.select("route", "rank").rows() == [(1, 1), (0, 2)]
 
 
-def test_held_needs_the_change_time_and_no_cancellation():
+def test_held_needs_the_change_time_and_no_cancellation() -> None:
     df = pl.DataFrame(
         {
             "arr": [at(14)] * 4,

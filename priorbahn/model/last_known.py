@@ -1,4 +1,5 @@
-"""The last known delay of a train before "now" (docs/data-prep-plan.md, section 10).
+"""
+The last known delay of a train before "now".
 
 For every row and one event ("arr" or "dep"), three columns are added:
 - `last_known_delay`: the delay at the train's last event before the cutoff (empty: the
@@ -15,7 +16,7 @@ from datetime import datetime
 
 import polars as pl
 
-from dbdelay.model.context import actual_time
+from priorbahn.model.context import actual_time
 
 COLUMNS = ("last_known_delay", "minutes_since_known", "stops_since_known")
 
@@ -27,7 +28,8 @@ def with_last_known(
     model: str,
     replay: bool,
 ) -> pl.DataFrame:
-    """`rows` with the COLUMNS for their `model` event.
+    """
+    `rows` with the COLUMNS for their `model` event.
 
     `replay` is False for query rows (the cutoff is `now`) and True for context rows (the
     cutoff is the earliest of `now`, the same clock time on the day of the row's event, and
@@ -49,8 +51,10 @@ def with_last_known(
 def at_cutoff(
     rows: pl.DataFrame, stops: pl.LazyFrame, cutoff: pl.Expr, model: str
 ) -> pl.DataFrame:
-    """`rows` with the COLUMNS for their `model` event, known before `cutoff`, an
-    expression on `rows` that can differ per row."""
+    """
+    `rows` with the COLUMNS for their `model` event, known before `cutoff`, an
+    expression on `rows` that can differ per row.
+    """
     planned = pl.col(f"planned_{model}")
     # all stops of the rows' runs, numbered 1, 2, 3, ... by planned time within each run
     runs = (

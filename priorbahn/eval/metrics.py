@@ -1,20 +1,23 @@
-"""Per-leg scores for predicted delay quantiles.
+"""
+Per-leg scores for predicted delay quantiles.
 
 Every method returns the same frame: one row per query row with columns q50, q80, q95
-(see `dbdelay.model.predict.QUANTILES`). Scores use only rows with a known target, and
-weight each row with its group weight (see `dbdelay.eval.runs.group_weights`).
+(see `priorbahn.model.predict.QUANTILES`). Scores use only rows with a known target, and
+weight each row with its group weight (see `priorbahn.eval.runs.group_weights`).
 """
 
 import polars as pl
 
-from dbdelay.model.features import EVENTS
-from dbdelay.model.predict import QUANTILES
+from priorbahn.model.features import EVENTS
+from priorbahn.model.predict import QUANTILES
 
 QCOLS = {q: f"q{round(q * 100)}" for q in QUANTILES}
 
 
 def pinball(q: float) -> pl.Expr:
-    """Pinball (quantile) loss of the column for quantile `q` against the target `y`."""
+    """
+    Pinball (quantile) loss of the column for quantile `q` against the target `y`.
+    """
     diff = pl.col("y") - pl.col(QCOLS[q])
     return pl.max_horizontal(q * diff, (q - 1) * diff)
 
@@ -22,7 +25,8 @@ def pinball(q: float) -> pl.Expr:
 def scored_rows(
     rows: pl.DataFrame, pred: pl.DataFrame, model: str, extra: tuple[str, ...] = ()
 ) -> pl.DataFrame:
-    """Query rows next to their predictions, kept only where the target is known.
+    """
+    Query rows next to their predictions, kept only where the target is known.
 
     `extra` names more columns of `rows` to keep, for breakdowns.
     """
@@ -50,7 +54,8 @@ def scored_rows(
 
 
 def score(df: pl.DataFrame, by: str | list[str] | None = None) -> pl.DataFrame:
-    """Weighted scores, overall or per value of `by`.
+    """
+    Weighted scores, overall or per value of `by`.
 
     - pinball_qXX: mean pinball loss at that quantile, and pinball the mean over quantiles
     - mae: mean absolute error of the median

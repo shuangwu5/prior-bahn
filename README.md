@@ -17,9 +17,9 @@ what actually happened.
 ## How it works
 
 1. **Routes.** A router built from the dataset's own timetable finds up to 10 train-only
-   routes from your station, leaving at or after "now" (`dbdelay/router`).
+   routes from your station, leaving at or after "now" (`priorbahn/router`).
 2. **Context.** For each search, the app collects up to 5,000 past rows for TabPFN
-   (`dbdelay/model/context.py`). It uses only what was known at "now":
+   (`priorbahn/model/context.py`). It uses only what was known at "now":
    - the same trains: the stops they passed today before "now", and their whole rides on
      the last 14 days
    - other trains at the same stations, around the same time, on the last 7 days, plus the
@@ -27,12 +27,12 @@ what actually happened.
    - a random sample of the same train types from all stations
 3. **Last known delay.** If a train is already running, its delay at the last stop before
    "now" is a feature, and TabPFN predicts how much the delay changes from there
-   (`dbdelay/model/last_known.py`). Past days are replayed at the same clock time, so the
+   (`priorbahn/model/last_known.py`). Past days are replayed at the same clock time, so the
    context rows look like the question. A train that has not started predicts the delay
    itself.
 4. **One call per search.** TabPFN fits on the context and predicts the arrival delay at
    every stop where you leave a train, as three numbers: expected (q50), 80% and 95%.
-5. **Transfers.** Each transfer gets one of four levels (`dbdelay/risk.py`): does it still
+5. **Transfers.** Each transfer gets one of four levels (`priorbahn/risk.py`): does it still
    leave 2 minutes to change trains if the incoming train is as late as its predicted 95%,
    80% or 50% level? The connecting train is taken as on time (only 0.14% of departures
    leave early).
@@ -96,13 +96,13 @@ uv run --no-sync hf download piebro/deutsche-bahn-data --repo-type dataset \
   --include "monthly_processed_data/data-2026-09.parquet" --local-dir data
 
 # build the stops table (data/processed/stops.parquet, about 2 minutes)
-uv run --no-sync python -m dbdelay.data.prep
+uv run --no-sync python -m priorbahn.data.prep
 
 # the app
-uv run --no-sync streamlit run app/streamlit_app.py
+uv run --no-sync streamlit run app/app.py
 ```
 
-The app runs TabPFN on your machine (`LOCAL = True` in `app/streamlit_app.py`). The first
+The app runs TabPFN on your machine (`LOCAL = True` in `app/app.py`). The first
 search downloads the model weights. One search takes about 50 seconds on a Mac. To use the
 Prior Labs API instead, set `LOCAL = False` and put your key in `.env` as
 `PRIORLABS_API_KEY=...`.
@@ -120,13 +120,13 @@ whether each transfer held.
 The evaluation uses the API (add `--local` to run it on your machine).
 
 ```bash
-uv run --no-sync python -m dbdelay.eval.requests validation          # sample and route searches
-uv run --no-sync python -m dbdelay.eval.run_requests validation carry_forward --models arr
-uv run --no-sync python -m dbdelay.eval.run_requests validation tabpfn_14d_5k_last_known \
+uv run --no-sync python -m priorbahn.eval.requests validation          # sample and route searches
+uv run --no-sync python -m priorbahn.eval.run_requests validation carry_forward --models arr
+uv run --no-sync python -m priorbahn.eval.run_requests validation tabpfn_14d_5k_last_known \
   --models arr --workers 4
-uv run --no-sync python -m dbdelay.eval.run_requests validation xgboost --models arr  # ~25 min
-uv run --no-sync python -m dbdelay.eval.run_requests validation report
-uv run --no-sync python -m dbdelay.eval.transfers validation         # transfer levels
+uv run --no-sync python -m priorbahn.eval.run_requests validation xgboost --models arr  # ~25 min
+uv run --no-sync python -m priorbahn.eval.run_requests validation report
+uv run --no-sync python -m priorbahn.eval.transfers validation         # transfer levels
 ```
 
 Use `test` instead of `validation` for the test week. The searches in the results were drawn
@@ -146,11 +146,11 @@ when the app is running at `APP_URL` (default `http://localhost:8502`).
 
 | Path | What |
 |---|---|
-| `dbdelay/data/prep.py` | builds the stops table from the raw files |
-| `dbdelay/router/` | route search on the timetable of one day |
-| `dbdelay/model/` | context, last known delay, features, TabPFN call |
-| `dbdelay/risk.py` | transfer levels and route ranking |
-| `dbdelay/eval/` | baselines, metrics, evaluation on sampled searches |
+| `priorbahn/data/prep.py` | builds the stops table from the raw files |
+| `priorbahn/router/` | route search on the timetable of one day |
+| `priorbahn/model/` | context, last known delay, features, TabPFN call |
+| `priorbahn/risk.py` | transfer levels and route ranking |
+| `priorbahn/eval/` | baselines, metrics, evaluation on sampled searches |
 | `app/` | the Streamlit app |
 | `docs/` | plans, data notes, lessons from the bahnvorhersage project |
 

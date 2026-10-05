@@ -1,6 +1,7 @@
-"""Score the methods on router requests, with "now" set to each request's departure time.
+"""
+Score the methods on router requests, with "now" set to each request's departure time.
 
-Needs the rows from `python -m dbdelay.eval.requests <split>`. Each request is predicted
+Needs the rows from `python -m priorbahn.eval.requests <split>`. Each request is predicted
 like in the app: one shared context for all its stops, built with what was known at
 "now" (`build_context`). Per leg, the departure at the boarding stop and the arrival at
 the alighting stop are scored. TabPFN predictions are cached per request, so an
@@ -10,9 +11,9 @@ Scores are saved under the subset "requests" (or "requests_<N>" with --limit N, 
 "requests_<day>" with --day YYYY-MM-DD).
 
 Run from the repo root:
-uv run --no-sync python -m dbdelay.eval.run_requests validation <method> [--limit N]
+uv run --no-sync python -m priorbahn.eval.run_requests validation <method> [--limit N]
     [--day YYYY-MM-DD] [--models arr] [--workers 4] [--local]
-uv run --no-sync python -m dbdelay.eval.run_requests validation report [--subset requests]
+uv run --no-sync python -m priorbahn.eval.run_requests validation report [--subset requests]
     [--reference carry_forward]
 """
 
@@ -23,19 +24,19 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import numpy as np
 import polars as pl
 
-from dbdelay.eval import baselines, metrics, paths
-from dbdelay.eval.xgboost_baseline import xgboost_quantiles
-from dbdelay.model import last_known
-from dbdelay.model.context import build_context
-from dbdelay.model.features import with_days_ago
-from dbdelay.model.predict import load_token, predict_delays
+from priorbahn.eval import baselines, metrics, paths
+from priorbahn.eval.xgboost_baseline import xgboost_quantiles
+from priorbahn.model import last_known
+from priorbahn.model.context import build_context
+from priorbahn.model.features import with_days_ago
+from priorbahn.model.predict import load_token, predict_delays
 
 STOPS = "data/processed/stops.parquet"
 MODELS = ["arr", "dep"]
 # TabPFN variants: whether the last known delay is a feature and TabPFN predicts the change
-# from it (docs/data-prep-plan.md, section 10), the context size, and how many days back
+# from it, the context size, and how many days back
 # the same train's rides go (the other context groups use 7 days). All use the context of
-# dbdelay.model.context (known at now) and "days_ago". The cached results of the older
+# priorbahn.model.context (known at now) and "days_ago". The cached results of the older
 # variants "tabpfn_now" and "tabpfn_midnight" (2,000 rows, all earlier days) stay in
 # data/eval, but their code is gone.
 TABPFN = {
@@ -66,10 +67,12 @@ def tabpfn(
     models: list[str],
     local: bool,
     workers: int,
-):
-    """Predictions for every row of `rows` and each of `models`, with columns KEYS, model
+) -> pl.DataFrame:
+    """
+    Predictions for every row of `rows` and each of `models`, with columns KEYS, model
     and QCOLS. `local` runs TabPFN on this machine instead of the Prior Labs API.
-    `workers` requests run at the same time (the API does the work, we mostly wait)."""
+    `workers` requests run at the same time (the API does the work, we mostly wait).
+    """
     if not local:
         load_token()
     config = TABPFN[variant]
@@ -141,8 +144,10 @@ def predict(
     models: list[str],
     local: bool,
     workers: int,
-):
-    """Predictions of `method` aligned with `rows` (QCOLS columns)."""
+) -> pl.DataFrame:
+    """
+    Predictions of `method` aligned with `rows` (QCOLS columns).
+    """
     if method in TABPFN:
         cache = tabpfn(stops, rows, split, method, models, local, workers)
         return rows.select(*KEYS, "model").join(
@@ -201,7 +206,9 @@ def subset_name(limit: int | None, day: str | None = None) -> str:
 
 
 def case() -> pl.Expr:
-    """Not seen yet, or seen, by minutes from now to the event."""
+    """
+    Not seen yet, or seen, by minutes from now to the event.
+    """
     ahead = pl.col("minutes_ahead")
     return (
         pl.when(pl.col("seen_delay").is_null())
@@ -216,8 +223,10 @@ def case() -> pl.Expr:
 
 
 def report(split: str, subset: str, methods: list[str] | None, reference: str) -> None:
-    """Scores of the saved methods of one subset, on the requests they all scored, and
-    each method's difference to `reference` with a 95% range (see `differences`)."""
+    """
+    Scores of the saved methods of one subset, on the requests they all scored, and
+    each method's difference to `reference` with a 95% range (see `differences`).
+    """
     folder = paths.scores(split, subset, "x").parent
     methods = methods or sorted(p.stem for p in folder.glob("*.parquet"))
     scored = pl.concat(
@@ -247,10 +256,12 @@ def report(split: str, subset: str, methods: list[str] | None, reference: str) -
 
 
 def differences(scored: pl.DataFrame, reference: str, n: int = 2000) -> pl.DataFrame:
-    """Mean pinball loss of each method minus that of `reference`, on the same events,
+    """
+    Mean pinball loss of each method minus that of `reference`, on the same events,
     per model and "seen" or "not seen". The 95% range comes from drawing the requests
     again with replacement `n` times: a range that includes 0 means no clear difference.
-    Delays have a long tail, so a few events can decide a mean."""
+    Delays have a long tail, so a few events can decide a mean.
+    """
     loss = pl.mean_horizontal(metrics.pinball(q) for q in metrics.QCOLS)
     wide = scored.with_columns(
         loss=loss,

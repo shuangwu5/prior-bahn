@@ -1,4 +1,5 @@
-"""Sample evaluation requests and route them (docs/plan.md, component 5).
+"""
+Sample evaluation requests and route them.
 
 A request is (start, destination, departure time) on one day of the validation or test
 week. Start and destination are drawn from the busiest stations, weighted by their number
@@ -6,7 +7,7 @@ of departures, and departure times are spread evenly over the hours. Each reques
 like in the app, and the legs of its routes are saved so every model is scored on the same
 rows.
 
-Run from the repo root: uv run --no-sync python -m dbdelay.eval.requests validation
+Run from the repo root: uv run --no-sync python -m priorbahn.eval.requests validation
 """
 
 import sys
@@ -15,10 +16,10 @@ from datetime import date, datetime, timedelta
 import numpy as np
 import polars as pl
 
-from dbdelay.eval import paths
-from dbdelay.eval.runs import train_group
-from dbdelay.model.context import actual_time
-from dbdelay.router import core as rc
+from priorbahn.eval import paths
+from priorbahn.eval.runs import train_group
+from priorbahn.model.context import actual_time
+from priorbahn.router import core as rc
 
 STOPS = "data/processed/stops.parquet"
 WEEKS = {
@@ -32,7 +33,9 @@ N_ROUTES = 3  # alternatives per request, as in the app
 
 
 def busy_stations(n: int = N_STATIONS) -> pl.DataFrame:
-    """The `n` stations with the most departures in the context pool, with their counts."""
+    """
+    The `n` stations with the most departures in the context pool, with their counts.
+    """
     return (
         pl.scan_parquet(STOPS)
         .filter(pl.col("split") == "context", pl.col("planned_dep").is_not_null())
@@ -78,7 +81,9 @@ def draw_requests(split: str, n: int, seed: int = 0) -> pl.DataFrame:
 def find_journeys(
     tt: rc.Timetable, src: str, dst: str, depart: datetime, n: int = N_ROUTES
 ) -> list[list[rc.Leg]]:
-    """Up to `n` routes, found by rerunning for later departures (as the app)."""
+    """
+    Up to `n` routes, found by rerunning for later departures (as the app).
+    """
     journeys = []
     for _ in range(n):
         legs = rc.earliest_arrival(tt, src, dst, depart)
@@ -91,7 +96,9 @@ def find_journeys(
 
 
 def legs_frame(journeys: list[list[rc.Leg]], request_id: int) -> list[dict]:
-    """One row per leg of each journey, with the outcome of the transfer before it."""
+    """
+    One row per leg of each journey, with the outcome of the transfer before it.
+    """
     rows = []
     for route, journey in enumerate(journeys):
         for i, leg in enumerate(journey):
@@ -115,7 +122,9 @@ def legs_frame(journeys: list[list[rc.Leg]], request_id: int) -> list[dict]:
 
 
 def route_request(tt: rc.Timetable, req: dict) -> list[dict]:
-    """Legs of up to N_ROUTES routes for one request."""
+    """
+    Legs of up to N_ROUTES routes for one request.
+    """
     journeys = find_journeys(tt, req["src"], req["dst"], req["depart"])
     return legs_frame(journeys, req["request_id"])
 
@@ -133,7 +142,8 @@ def build(split: str, n: int = N_REQUESTS, seed: int = 0) -> tuple[pl.DataFrame,
 def request_rows(
     stops: pl.LazyFrame, requests: pl.DataFrame, legs: pl.DataFrame
 ) -> pl.DataFrame:
-    """The stop events scored for each request, one row per request, stop and event.
+    """
+    The stop events scored for each request, one row per request, stop and event.
 
     Per leg, two events: the departure at the boarding stop (`model` "dep") and the
     arrival at the alighting stop ("arr"). An event shared by several routes of one
@@ -179,8 +189,10 @@ def request_rows(
 
 
 def last_seen(runs: pl.LazyFrame, rows: pl.DataFrame) -> pl.DataFrame:
-    """Delay of each request's runs at their last event before now (same leak rule as the
-    context: the actual time must be before now)."""
+    """
+    Delay of each request's runs at their last event before now (same leak rule as the
+    context: the actual time must be before now).
+    """
     pairs = rows.select("request_id", "run_id", "now").unique()
     events = runs.collect().join(pairs, on="run_id")
     return (

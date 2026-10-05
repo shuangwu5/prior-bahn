@@ -1,13 +1,20 @@
-"""Fit TabPFN on a shared context and predict delay quantiles for the query rows."""
+"""
+Fit TabPFN on a shared context and predict delay quantiles for the query rows.
+"""
 
 import os
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import numpy as np
 import polars as pl
 from dotenv import load_dotenv
 
-from dbdelay.model.features import EVENTS, shared_categories, to_frame, usable_rows
+from priorbahn.model.features import EVENTS, shared_categories, to_frame, usable_rows
+
+if TYPE_CHECKING:
+    import tabpfn
+    import tabpfn_client
 
 VERSION = "v3.5"  # "v3.5-fast" is the faster variant (API only)
 QUANTILES = [0.5, 0.8, 0.95]
@@ -15,12 +22,16 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 def load_token() -> None:
-    """Read the Prior Labs key from .env. Both packages read it from TABPFN_TOKEN."""
+    """
+    Read the Prior Labs key from .env. Both packages read it from TABPFN_TOKEN.
+    """
     load_dotenv(ROOT / ".env", override=True)
     os.environ["TABPFN_TOKEN"] = os.environ["PRIORLABS_API_KEY"]
 
 
-def regressor(local: bool = False, version: str = VERSION):
+def regressor(
+    local: bool = False, version: str = VERSION
+) -> "tabpfn.TabPFNRegressor | tabpfn_client.TabPFNRegressor":
     if local:
         from tabpfn import TabPFNRegressor
     else:
@@ -38,7 +49,8 @@ def predict_delays(
     change_from: str | None = None,
     version: str = VERSION,
 ) -> pl.DataFrame:
-    """Quantiles of the `model` delay ("arr" or "dep") for every query row.
+    """
+    Quantiles of the `model` delay ("arr" or "dep") for every query row.
 
     `extra` names feature columns used on top of the standard list, such as "days_ago"
     (see `features.with_days_ago`); both frames must have them.

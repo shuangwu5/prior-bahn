@@ -1,7 +1,8 @@
-"""Browser check of the Streamlit app with Playwright (uses the installed Chrome).
+"""
+Browser check of the Streamlit app with Playwright (uses the installed Chrome).
 
 Needs the app running, and is skipped otherwise:
-uv run --no-sync streamlit run app/streamlit_app.py --server.port 8502
+uv run --no-sync streamlit run app/app.py --server.port 8502
 APP_URL=http://localhost:8502 uv run --no-sync pytest tests/test_app_ui.py
 
 One search runs TabPFN, which takes about half a minute with the local model.
@@ -29,7 +30,7 @@ def app_is_running() -> bool:
 pytestmark = pytest.mark.skipif(not app_is_running(), reason=f"no app at {APP_URL}")
 
 
-def test_actual_delays_show_only_when_ticked():
+def test_actual_delays_show_only_when_ticked() -> None:
     from playwright.sync_api import expect, sync_playwright
 
     with sync_playwright() as p:

@@ -1,7 +1,8 @@
-"""Check the transfer levels of dbdelay.risk against what actually happened.
+"""
+Check the transfer levels of priorbahn.risk against what actually happened.
 
 Uses the router requests of one week and the arrival predictions of each method (TabPFN
-from its cache, see dbdelay.eval.run_requests; the baselines are computed). A transfer
+from its cache, see priorbahn.eval.run_requests; the baselines are computed). A transfer
 held if the connecting train left at least risk.CHANGE_MIN minutes after the incoming
 train arrived (a cancellation is a miss). Transfers with an unknown delay are left out.
 
@@ -9,23 +10,25 @@ A good method puts many transfers in level 1, and the held rate of each level fa
 its range (risk.LEVELS).
 
 Run from the repo root:
-uv run --no-sync python -m dbdelay.eval.transfers validation [--methods ...]
+uv run --no-sync python -m priorbahn.eval.transfers validation [--methods ...]
 """
 
 import argparse
 
 import polars as pl
 
-from dbdelay import risk
-from dbdelay.eval import paths
-from dbdelay.eval.run_requests import predict
+from priorbahn import risk
+from priorbahn.eval import paths
+from priorbahn.eval.run_requests import predict
 
 STOPS = "data/processed/stops.parquet"
 METHODS = ["tabpfn_14d_5k_last_known", "train_station", "carry_forward", "global"]
 
 
 def with_outcome(transfers: pl.DataFrame, stops: pl.LazyFrame) -> pl.DataFrame:
-    """`transfers` (see risk.transfers) with `held`, from the actual delays."""
+    """
+    `transfers` (see risk.transfers) with `held`, from the actual delays.
+    """
     actual = stops.select(
         "run_id",
         "stop_num",
@@ -69,7 +72,9 @@ def with_outcome(transfers: pl.DataFrame, stops: pl.LazyFrame) -> pl.DataFrame:
 
 
 def scored_transfers(split: str, method: str) -> pl.DataFrame:
-    """Every transfer with a known outcome, with its level by `method`."""
+    """
+    Every transfer with a known outcome, with its level by `method`.
+    """
     stops = pl.scan_parquet(STOPS)
     legs = pl.read_parquet(paths.router_legs(split))
     rows = pl.read_parquet(paths.request_rows(split)).filter(pl.col("model") == "arr")
@@ -86,7 +91,9 @@ def scored_transfers(split: str, method: str) -> pl.DataFrame:
 
 
 def summary(scored: pl.DataFrame) -> pl.DataFrame:
-    """Per method and level: share of transfers and how often they held."""
+    """
+    Per method and level: share of transfers and how often they held.
+    """
     return (
         scored.group_by("method", "level")
         .agg(pl.len().alias("transfers"), pl.col("held").mean().alias("held"))

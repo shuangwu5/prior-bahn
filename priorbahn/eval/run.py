@@ -1,6 +1,7 @@
-"""Score TabPFN and the baselines on the sampled runs of one week (per-leg evaluation).
+"""
+Score TabPFN and the baselines on the sampled runs of one week (per-leg evaluation).
 
-Needs the sampled rows from `python -m dbdelay.eval.runs <split>`. TabPFN gets one shared
+Needs the sampled rows from `python -m priorbahn.eval.runs <split>`. TabPFN gets one shared
 context per run, built from the run's own stop rows as the query, like a request in the
 app. Its predictions are cached in one file per variant, saved after every run, so an
 interrupted run resumes where it stopped.
@@ -11,9 +12,9 @@ compares the saved methods of one subset on the runs they all share. data/eval/R
 lists the files and the experiments behind them.
 
 Run from the repo root:
-uv run --no-sync python -m dbdelay.eval.run validation tabpfn [--per-group N]
+uv run --no-sync python -m priorbahn.eval.run validation tabpfn [--per-group N]
     [--train-type ICE]
-uv run --no-sync python -m dbdelay.eval.run validation report [--subset all]
+uv run --no-sync python -m priorbahn.eval.run validation report [--subset all]
     [--methods ...]
 """
 
@@ -24,15 +25,15 @@ from datetime import time as clock
 
 import polars as pl
 
-from dbdelay.eval import baselines, metrics, paths
-from dbdelay.model.context import build_context
-from dbdelay.model.features import with_days_ago
-from dbdelay.model.predict import predict_delays
+from priorbahn.eval import baselines, metrics, paths
+from priorbahn.model.context import build_context
+from priorbahn.model.features import with_days_ago
+from priorbahn.model.predict import predict_delays
 
 STOPS = "data/processed/stops.parquet"
 MODELS = ["arr", "dep"]
 # TabPFN variants: whether S-Bahn rows are left out of the context for other trains
-# (see dbdelay.model.context) and whether "days_ago" is a feature. The cached results in
+# (see priorbahn.model.context) and whether "days_ago" is a feature. The cached results in
 # data/eval were made with an older context (2,000 rows, fixed shares, all earlier days).
 TABPFN = {
     "tabpfn": {"skip_s_bahn": False, "days_ago": False},
@@ -98,8 +99,12 @@ def tabpfn(
     }
 
 
-def predict(method: str, stops: pl.LazyFrame, rows: pl.DataFrame, split: str):
-    """Predictions of `method` for both models, aligned with `rows`."""
+def predict(
+    method: str, stops: pl.LazyFrame, rows: pl.DataFrame, split: str
+) -> dict[str, pl.DataFrame]:
+    """
+    Predictions of `method` for both models, aligned with `rows`.
+    """
     if method in TABPFN:
         return tabpfn(stops, rows, split, method)
     fn = {
@@ -140,8 +145,10 @@ def score_method(
 
 
 def report(split: str, subset: str, methods: list[str] | None) -> None:
-    """Scores of the saved `methods` of one subset (all saved ones by default), on the
-    runs that every one of them has scored."""
+    """
+    Scores of the saved `methods` of one subset (all saved ones by default), on the
+    runs that every one of them has scored.
+    """
     folder = paths.scores(split, subset, "x").parent
     methods = methods or sorted(p.stem for p in folder.glob("*.parquet"))
     scored = pl.concat(pl.read_parquet(paths.scores(split, subset, m)) for m in methods)

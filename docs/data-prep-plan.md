@@ -1,6 +1,6 @@
 # Data preparation plan
 
-The `stops` table is built by `dbdelay/data/prep.py` (output `data/processed/stops.parquet`). `hops` and `transfers` (section 8) are not built yet. Raw files are in `data/monthly_processed_data/`.
+The `stops` table is built by `priorbahn/data/prep.py` (output `data/processed/stops.parquet`). `hops` and `transfers` (section 8) are not built yet. Raw files are in `data/monthly_processed_data/`.
 
 Provenance of the facts below:
 - **Dataset card** (HF `piebro/deutsche-bahn-data`): column names and types, and the descriptions

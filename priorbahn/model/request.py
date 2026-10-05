@@ -1,4 +1,5 @@
-"""Predict the arrival delays of one request with the chosen setup (docs/plan.md, Decisions).
+"""
+Predict the arrival delays of one request with the chosen setup.
 
 The setup is the evaluation variant `tabpfn_14d_5k_last_known`: a context of up to 5,000
 rows known at "now" (7 days back, 14 days for the same train), the timetable features,
@@ -9,10 +10,10 @@ from datetime import datetime
 
 import polars as pl
 
-from dbdelay.model import last_known
-from dbdelay.model.context import build_context
-from dbdelay.model.features import with_days_ago
-from dbdelay.model.predict import QUANTILES, VERSION, predict_delays
+from priorbahn.model import last_known
+from priorbahn.model.context import build_context
+from priorbahn.model.features import with_days_ago
+from priorbahn.model.predict import QUANTILES, VERSION, predict_delays
 
 SIZE = 5_000
 SAME_TRAIN_DAYS = 14
@@ -26,8 +27,10 @@ def predict_arrivals(
     version: str = VERSION,
     quantiles: list[float] = QUANTILES,
 ) -> pl.DataFrame:
-    """Arrival delay quantiles (q50, q80, q95 by default) for the stops in `keys` (run_id,
-    stop_num), with their `last_known_delay` and `minutes_since_known` (empty: not started)."""
+    """
+    Arrival delay quantiles (q50, q80, q95 by default) for the stops in `keys` (run_id,
+    stop_num), with their `last_known_delay` and `minutes_since_known` (empty: not started).
+    """
     query = stops.join(
         keys.select("run_id", "stop_num").unique().lazy(), on=["run_id", "stop_num"]
     ).collect()

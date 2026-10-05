@@ -1,4 +1,6 @@
-"""Train-only routing on the stops table, replayed against what actually happened."""
+"""
+Train-only routing on the stops table, replayed against what actually happened.
+"""
 
 import bisect
 from dataclasses import dataclass
@@ -45,12 +47,15 @@ class Leg:
 
 
 def actual(planned: str, delay: str) -> pl.Expr:
-    """Actual time from the planned time and the delay in minutes (null if canceled)."""
+    """
+    Actual time from the planned time and the delay in minutes (null if canceled).
+    """
     return pl.col(planned) + pl.duration(minutes=pl.col(delay))
 
 
 def load_timetable(day: date, path: str = PATH) -> Timetable:
-    """Connections between consecutive stops of each run, from the stops table.
+    """
+    Connections between consecutive stops of each run, from the stops table.
 
     Stations are the merged station names of the stops table, so every leg of a route
     matches rows the delay model can predict.
@@ -132,7 +137,8 @@ def stops_between(tt: Timetable, enter: int, leave: int) -> list[str]:
 def earliest_arrival(
     tt: Timetable, src: str, dst: str, depart_at: datetime
 ) -> list[tuple[int, int]] | None:
-    """Connection scan: returns legs as (boarding connection, alighting connection) index pairs.
+    """
+    Connection scan: returns legs as (boarding connection, alighting connection) index pairs.
 
     Stops are station names, as in prep.py: big stations have several EVA codes (main
     line and S-Bahn), and a journey may start, end or change trains at any of them.
@@ -180,7 +186,9 @@ def delay(planned: datetime, actual: datetime | None) -> int | None:
 
 
 def replay(tt: Timetable, legs: list[tuple[int, int]]) -> list[Leg]:
-    """Compare the planned journey with what actually happened, transfer by transfer."""
+    """
+    Compare the planned journey with what actually happened, transfer by transfer.
+    """
     C = tt.conns
     out: list[Leg] = []
     prev = None

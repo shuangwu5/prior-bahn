@@ -1,12 +1,13 @@
-"""Streamlit app: plan a train journey and see how reliable each route is.
+"""
+Streamlit app: plan a train journey and see how reliable each route is.
 
 The user picks a day of the data, two stations and "now" (also the earliest departure).
 The app finds up to N routes, predicts the arrival delay of every leg with TabPFN from
-what was known at "now", gives each transfer a level (dbdelay/risk.py) and ranks the
+what was known at "now", gives each transfer a level (priorbahn/risk.py) and ranks the
 routes. A switch on the page reveals what actually happened that day. The cards are drawn by
 app/render.py.
 
-Run from the repo root: uv run --no-sync streamlit run app/streamlit_app.py
+Run from the repo root: uv run --no-sync streamlit run app/app.py
 """
 
 import sys
@@ -21,11 +22,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import render
 
-from dbdelay import risk
-from dbdelay.eval import requests as rq
-from dbdelay.model.predict import load_token
-from dbdelay.model.request import predict_arrivals
-from dbdelay.router import core as rc
+from priorbahn import risk
+from priorbahn.eval import requests as rq
+from priorbahn.model.predict import load_token
+from priorbahn.model.request import predict_arrivals
+from priorbahn.router import core as rc
 
 STOPS = "data/processed/stops.parquet"
 DATA_DAYS = (date(2026, 9, 15), date(2026, 9, 30))  # the context needs 14 earlier days
@@ -58,7 +59,9 @@ def get_timetable(day: date) -> rc.Timetable:
 
 
 def short_label(label: str) -> str:
-    """The line ("S3") if the label has one ("S 38318 (S3)"), else the train ("ECE 8")."""
+    """
+    The line ("S3") if the label has one ("S 38318 (S3)"), else the train ("ECE 8").
+    """
     return label[label.index("(") + 1 : -1] if "(" in label else label
 
 
@@ -66,8 +69,10 @@ def short_label(label: str) -> str:
 def plan(
     day: date, src: str, dst: str, now_time: time, version: str
 ) -> tuple[list[dict], float]:
-    """The ranked routes (up to MAX_ROUTES), each a dict for render.card, and the seconds
-    TabPFN took."""
+    """
+    The ranked routes (up to MAX_ROUTES), each a dict for render.card, and the seconds
+    TabPFN took.
+    """
     tt = get_timetable(day)
     now = datetime.combine(day, now_time)
     journeys = rq.find_journeys(tt, src, dst, now, MAX_ROUTES)
@@ -165,8 +170,12 @@ def plan(
     return out, seconds
 
 
-def transfer_held(arr: datetime, incoming: dict, dep: datetime, outgoing: dict):
-    """Whether the transfer actually worked, by the same rule as the evaluation."""
+def transfer_held(
+    arr: datetime, incoming: dict, dep: datetime, outgoing: dict
+) -> bool | None:
+    """
+    Whether the transfer actually worked, by the same rule as the evaluation.
+    """
     df = pl.DataFrame(
         {
             "arr": [arr],

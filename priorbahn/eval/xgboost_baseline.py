@@ -1,4 +1,5 @@
-"""XGBoost baseline: one quantile model per request day, trained on the history.
+"""
+XGBoost baseline: one quantile model per request day, trained on the history.
 
 For query rows of day D, the model learns from the usable rows of the HISTORY_DAYS days
 before D (the same history as the count-based baselines), with at most CAP_PER_TYPE rows
@@ -10,14 +11,16 @@ its own: a random time up to MAX_AHEAD minutes before its planned event. Query r
 their request's "now".
 """
 
+from datetime import date
+
 import numpy as np
 import polars as pl
 import xgboost as xgb
 
-from dbdelay.eval.baselines import _history
-from dbdelay.model import last_known
-from dbdelay.model.features import EVENTS, shared_categories, to_frame
-from dbdelay.model.predict import QUANTILES
+from priorbahn.eval.baselines import _history
+from priorbahn.model import last_known
+from priorbahn.model.features import EVENTS, shared_categories, to_frame
+from priorbahn.model.predict import QUANTILES
 
 CAP_PER_TYPE = 200_000
 MAX_AHEAD = 360  # minutes; 75% of the scored validation arrivals are under 274 ahead
@@ -32,8 +35,12 @@ PARAMS = {
 EXTRA = last_known.COLUMNS
 
 
-def training_rows(stops: pl.LazyFrame, day, model: str, seed: int = 0) -> pl.DataFrame:
-    """The capped history of `day` with the last known delay at a random "now"."""
+def training_rows(
+    stops: pl.LazyFrame, day: date, model: str, seed: int = 0
+) -> pl.DataFrame:
+    """
+    The capped history of `day` with the last known delay at a random "now".
+    """
     rows = (
         _history(stops, day, model)
         .filter(
@@ -62,7 +69,9 @@ def _change_target(rows: pl.DataFrame, model: str) -> np.ndarray:
 def xgboost_quantiles(
     stops: pl.LazyFrame, query: pl.DataFrame, model: str
 ) -> pl.DataFrame:
-    """q50, q80, q95 per query row, in query order, null where the event does not exist."""
+    """
+    q50, q80, q95 per query row, in query order, null where the event does not exist.
+    """
     qcols = [f"q{round(q * 100)}" for q in QUANTILES]
     query = last_known.at_cutoff(query, stops, pl.col("now"), model).with_row_index(
         "_row"

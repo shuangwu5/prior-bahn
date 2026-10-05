@@ -1,4 +1,5 @@
-"""Baseline checks on a small made-up stops table (no API calls).
+"""
+Baseline checks on a small made-up stops table (no API calls).
 
 uv run --no-sync pytest tests/test_baselines.py
 """
@@ -7,13 +8,15 @@ from datetime import date, datetime, time, timedelta
 
 import polars as pl
 
-from dbdelay.eval.baselines import global_quantiles
+from priorbahn.eval.baselines import global_quantiles
 
 DAY = date(2026, 9, 20)
 
 
 def made_up_stops(rows: list[tuple]) -> pl.LazyFrame:
-    """One arrival per row: (run_id, run_day, planned_arr, arr_delay), all at station "S"."""
+    """
+    One arrival per row: (run_id, run_day, planned_arr, arr_delay), all at station "S".
+    """
     df = pl.DataFrame(
         rows,
         schema={
@@ -34,7 +37,7 @@ def made_up_stops(rows: list[tuple]) -> pl.LazyFrame:
     ).lazy()
 
 
-def test_history_leaves_out_events_of_the_query_day():
+def test_history_leaves_out_events_of_the_query_day() -> None:
     day_before = DAY - timedelta(days=1)
     rows = [
         (f"r{i}", day_before, datetime.combine(day_before, time(10, i)), 1)
