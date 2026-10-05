@@ -211,12 +211,7 @@ with main:
         now_time = col_time.time_input(
             "Now (earliest departure)", value=time(8, 0), step=timedelta(minutes=5)
         )
-        model_name = st.radio(
-            "Model",
-            list(MODELS),
-            index=list(MODELS).index("TabPFN 3.5 Fast"),
-            horizontal=True,
-        )
+        model_name = st.radio("Model", list(MODELS), horizontal=True)
         submitted = st.form_submit_button("Find routes", type="primary")
 
     if submitted:
