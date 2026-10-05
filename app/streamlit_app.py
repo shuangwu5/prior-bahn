@@ -168,8 +168,8 @@ def transfer_held(arr: datetime, incoming: dict, dep: datetime, outgoing: dict):
     return df.select(risk.held(*(pl.col(c) for c in df.columns)))[0, 0]
 
 
-st.set_page_config(page_title="Reliable train routes", layout="wide")
-st.title("Reliable train routes")
+st.set_page_config(page_title="Prior Bahn", layout="wide")
+st.title("Prior Bahn")
 st.caption(
     "Train-only routes on the August and September 2026 timetable, ranked by earlier "
     "arrival, then fewer transfers. Delays are predicted with TabPFN from what was "

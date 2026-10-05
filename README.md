@@ -1,4 +1,4 @@
-# Reliable train routes with TabPFN-3.5
+# Prior Bahn: reliable train routes with TabPFN-3.5
 
 Plan a train trip in Germany and see how likely each transfer works. The app predicts the
 delay of every train on the candidate routes with TabPFN-3.5, from what was known at the
