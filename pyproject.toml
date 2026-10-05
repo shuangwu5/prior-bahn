@@ -1,5 +1,5 @@
 [project]
-name = "tabpfn-db-delay-forecasting"
+name = "prior-bahn"
 version = "0.1.0"
 requires-python = ">=3.13"
 dependencies = [

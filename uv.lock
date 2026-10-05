@@ -2235,6 +2235,55 @@ wheels = [
 ]
 
 [[package]]
+name = "prior-bahn"
+version = "0.1.0"
+source = { virtual = "." }
+dependencies = [
+    { name = "huggingface-hub" },
+    { name = "pandas" },
+    { name = "polars" },
+    { name = "pyarrow" },
+    { name = "python-dotenv" },
+    { name = "streamlit" },
+    { name = "tabpfn" },
+    { name = "tabpfn-client" },
+    { name = "xgboost" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "jupyterlab" },
+    { name = "matplotlib" },
+    { name = "playwright" },
+    { name = "pre-commit" },
+    { name = "pytest" },
+    { name = "ruff" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "huggingface-hub", specifier = ">=2.1.1" },
+    { name = "pandas", specifier = ">=2.1.2,<=2.3.3" },
+    { name = "polars", specifier = ">=1.44.2" },
+    { name = "pyarrow", specifier = ">=25.0.1" },
+    { name = "python-dotenv", specifier = ">=1.2.4" },
+    { name = "streamlit", specifier = ">=1.64.0" },
+    { name = "tabpfn", specifier = ">=9.1.0" },
+    { name = "tabpfn-client", specifier = ">=0.6" },
+    { name = "xgboost", specifier = ">=3.4.1" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "jupyterlab", specifier = ">=4.6.4" },
+    { name = "matplotlib", specifier = ">=3.11.2" },
+    { name = "playwright", specifier = ">=1.63.0" },
+    { name = "pre-commit", specifier = ">=4.6.2" },
+    { name = "pytest", specifier = ">=9.1.1" },
+    { name = "ruff", specifier = ">=0.16.10" },
+]
+
+[[package]]
 name = "prometheus-client"
 version = "0.26.0"
 source = { registry = "https://pypi.org/simple" }
@@ -3177,55 +3226,6 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/84/62/ec181b52e12f64eac179f31d0891ccb2b3f48552de32d8992e0f5144c808/tabpfn_common_utils-0.2.19.tar.gz", hash = "sha256:d5bb515f9c7bdda555d833542ab4c41a2cc7007e3ae57b9c302ad4f4f8186558", size = 1932394, upload-time = "2026-03-27T13:31:27.285Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/34/dd/4b6095777970f3f9e50144b5cfd993ad2e70a9c08fed3425d8c9e8f88784/tabpfn_common_utils-0.2.19-py3-none-any.whl", hash = "sha256:1f53f3f96ddccc99b27f80075437e7a3dd29666b6c2575ad03dc3f9ae6df9c38", size = 37295, upload-time = "2026-03-27T13:31:25.917Z" },
-]
-
-[[package]]
-name = "tabpfn-db-delay-forecasting"
-version = "0.1.0"
-source = { virtual = "." }
-dependencies = [
-    { name = "huggingface-hub" },
-    { name = "pandas" },
-    { name = "polars" },
-    { name = "pyarrow" },
-    { name = "python-dotenv" },
-    { name = "streamlit" },
-    { name = "tabpfn" },
-    { name = "tabpfn-client" },
-    { name = "xgboost" },
-]
-
-[package.dev-dependencies]
-dev = [
-    { name = "jupyterlab" },
-    { name = "matplotlib" },
-    { name = "playwright" },
-    { name = "pre-commit" },
-    { name = "pytest" },
-    { name = "ruff" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "huggingface-hub", specifier = ">=2.1.1" },
-    { name = "pandas", specifier = ">=2.1.2,<=2.3.3" },
-    { name = "polars", specifier = ">=1.44.2" },
-    { name = "pyarrow", specifier = ">=25.0.1" },
-    { name = "python-dotenv", specifier = ">=1.2.4" },
-    { name = "streamlit", specifier = ">=1.64.0" },
-    { name = "tabpfn", specifier = ">=9.1.0" },
-    { name = "tabpfn-client", specifier = ">=0.6" },
-    { name = "xgboost", specifier = ">=3.4.1" },
-]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "jupyterlab", specifier = ">=4.6.4" },
-    { name = "matplotlib", specifier = ">=3.11.2" },
-    { name = "playwright", specifier = ">=1.63.0" },
-    { name = "pre-commit", specifier = ">=4.6.2" },
-    { name = "pytest", specifier = ">=9.1.1" },
-    { name = "ruff", specifier = ">=0.16.10" },
 ]
 
 [[package]]
