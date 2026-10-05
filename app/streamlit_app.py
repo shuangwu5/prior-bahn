@@ -171,9 +171,9 @@ def transfer_held(arr: datetime, incoming: dict, dep: datetime, outgoing: dict):
 st.set_page_config(page_title="Prior Bahn", layout="wide")
 st.title("Prior Bahn")
 st.caption(
-    "Train-only routes on the August and September 2026 timetable, ranked by earlier "
-    "arrival, then fewer transfers. Delays are predicted with TabPFN from what was "
-    "known at the chosen time."
+    f"Train-only routes on the timetable from {DATA_DAYS[0]:%-d} to "
+    f"{DATA_DAYS[1]:%-d %B %Y}, ranked by earlier arrival, then fewer transfers. "
+    "Delays are predicted with TabPFN from what was known at the chosen time."
 )
 
 with st.form("query"):
@@ -184,9 +184,11 @@ with st.form("query"):
     )
     stations = get_timetable(day).stations
     src_name = col_from.selectbox(
-        "From", stations, index=stations.index("Heidelberg Hbf")
+        "From", stations, index=stations.index("Freiburg (Breisgau) Hbf")
     )
-    dst_name = col_to.selectbox("To", stations, index=stations.index("Lübeck Hbf"))
+    dst_name = col_to.selectbox(
+        "To", stations, index=stations.index("Berlin Hauptbahnhof")
+    )
     now_time = col_time.time_input(
         "Now (earliest departure)", value=time(8, 0), step=timedelta(minutes=5)
     )
