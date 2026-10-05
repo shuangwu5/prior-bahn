@@ -13,9 +13,9 @@ q95, q80 or q50 delay, with the connecting train on time:
 The connecting train is taken as on time because trains almost never leave early (0.14%
 of departures in the validation week), so a late departure only helps.
 
-Routes are ranked by their weakest transfer, then by how many transfers have that level
-(very likely transfers are not counted), then by the arrival time they reach with 80%
-certainty (planned arrival plus the q80 arrival delay of the last leg).
+Routes are ranked by the arrival time they reach with 80% certainty (planned arrival plus
+the q80 arrival delay of the last leg), then by their number of transfers. The weakest
+transfer level is shown next to each route, but does not change the order.
 """
 
 import polars as pl
@@ -81,16 +81,15 @@ def transfers(legs: pl.DataFrame) -> pl.DataFrame:
 
 def routes(legs: pl.DataFrame) -> pl.DataFrame:
     """One row per route: number of transfers, the weakest transfer level (1 for a direct
-    route) and how many transfers have it, the planned arrival and the arrival reached with
-    50%, 80% and 95% certainty, ranked within each request (`rank` 1 is the best). Needs
-    the columns of `with_arrival_delays`."""
+    route), the planned arrival and the arrival reached with 50%, 80% and 95% certainty,
+    ranked within each request (`rank` 1 is the best). Needs the columns of
+    `with_arrival_delays`."""
     weakest = (
         transfers(legs)
         .group_by(ROUTE)
         .agg(
             pl.len().alias("transfers"),
             pl.col("level").max().alias("weakest"),
-            (pl.col("level") == pl.col("level").max()).sum().alias("at_weakest"),
         )
     )
     last = legs.sort("leg").group_by(ROUTE).last()
@@ -107,16 +106,10 @@ def routes(legs: pl.DataFrame) -> pl.DataFrame:
     return (
         arrival.join(weakest, on=ROUTE, how="left")
         .with_columns(
-            pl.col("transfers", "at_weakest").fill_null(0),
+            pl.col("transfers").fill_null(0),
             pl.col("weakest").fill_null(1),
         )
-        # a very likely transfer does not count against a route
-        .with_columns(
-            at_weakest=pl.when(pl.col("weakest") == 1)
-            .then(0)
-            .otherwise(pl.col("at_weakest"))
-        )
-        .sort("request_id", "weakest", "at_weakest", "arrival_q80")
+        .sort("request_id", "arrival_q80", "transfers")
         .with_columns(rank=pl.int_range(1, pl.len() + 1).over("request_id"))
     )
 

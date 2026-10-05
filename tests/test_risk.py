@@ -69,13 +69,56 @@ def test_transfer_level_depends_on_the_room_at_each_quantile(q50, q80, q95, leve
     assert risk.transfers(legs_with(q50, q80, q95))["level"].to_list() == [level]
 
 
-def test_routes_rank_by_the_weakest_transfer():
-    # route 0 arrives earlier at q80 (15:02 against 15:07), so it wins only while its
-    # transfer is very likely; a direct route counts as level 1
-    ranked = risk.routes(legs_with(9, 12, 15))
-    assert ranked.select("route", "weakest", "rank").rows() == [(1, 1, 1), (0, 4, 2)]
-    ranked = risk.routes(legs_with(1, 4, 8))
-    assert ranked.select("route", "weakest", "rank").rows() == [(0, 1, 1), (1, 1, 2)]
+def test_routes_rank_by_arrival_then_transfers():
+    # route 0 arrives earlier at q80 (15:02 against 15:07), so it comes first despite its
+    # transfer; the transfer level does not change the order
+    for q in [(9, 12, 15), (1, 4, 8)]:
+        ranked = risk.routes(legs_with(*q))
+        assert ranked.select("route", "transfers", "rank").rows() == [
+            (0, 1, 1),
+            (1, 0, 2),
+        ]
+
+
+def test_routes_arriving_at_the_same_time_rank_by_transfers():
+    # route 1 (direct) is delayed to the same 80% arrival as route 0: fewer transfers win
+    pred = pl.DataFrame(
+        {
+            "request_id": [1, 1, 1],
+            "run_id": ["r1", "r2", "r3"],
+            "stop_num": [5, 9, 7],
+            "q50": [1.0, 1.0, -4.0],
+            "q80": [2.0, 2.0, -3.0],
+            "q95": [4.0, 4.0, 0.0],
+        }
+    )
+    ranked = risk.routes(risk.with_arrival_delays(LEGS, pred))
+    assert ranked.select("route", "rank").rows() == [(1, 1), (0, 2)]
+
+
+def test_routes_with_the_same_transfers_rank_by_arrival():
+    # two direct routes: the one arriving later is planned to arrive first, but its
+    # predicted delay makes it 10 min later at the 80% level
+    legs = pl.DataFrame(
+        [
+            (1, 0, 0, "a", "A", 1, at(13), "C", 4, at(15)),
+            (1, 1, 0, "b", "A", 1, at(13, 5), "C", 4, at(15, 5)),
+        ],
+        schema=LEGS.columns,
+        orient="row",
+    )
+    pred = pl.DataFrame(
+        {
+            "request_id": [1, 1],
+            "run_id": ["a", "b"],
+            "stop_num": [4, 4],
+            "q50": [10.0, 0.0],
+            "q80": [15.0, 0.0],
+            "q95": [20.0, 1.0],
+        }
+    )
+    ranked = risk.routes(risk.with_arrival_delays(legs, pred))
+    assert ranked.select("route", "rank").rows() == [(1, 1), (0, 2)]
 
 
 def test_held_needs_the_change_time_and_no_cancellation():
