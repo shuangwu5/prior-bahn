@@ -75,20 +75,30 @@ def draw_requests(split: str, n: int, seed: int = 0) -> pl.DataFrame:
     )
 
 
-def route_request(tt: rc.Timetable, req: dict) -> list[dict]:
-    """Legs of up to N_ROUTES routes, found by rerunning for later departures (as the app)."""
-    rows = []
-    depart = req["depart"]
-    for route in range(N_ROUTES):
-        legs = rc.earliest_arrival(tt, req["src"], req["dst"], depart)
+def find_journeys(
+    tt: rc.Timetable, src: str, dst: str, depart: datetime, n: int = N_ROUTES
+) -> list[list[rc.Leg]]:
+    """Up to `n` routes, found by rerunning for later departures (as the app)."""
+    journeys = []
+    for _ in range(n):
+        legs = rc.earliest_arrival(tt, src, dst, depart)
         if legs is None:
             break
         journey = rc.replay(tt, legs)
+        journeys.append(journey)
+        depart = journey[0].dep + timedelta(minutes=1)
+    return journeys
+
+
+def legs_frame(journeys: list[list[rc.Leg]], request_id: int) -> list[dict]:
+    """One row per leg of each journey, with the outcome of the transfer before it."""
+    rows = []
+    for route, journey in enumerate(journeys):
         for i, leg in enumerate(journey):
             t = leg.transfer_before
             rows.append(
                 {
-                    "request_id": req["request_id"],
+                    "request_id": request_id,
                     "route": route,
                     "leg": i,
                     "run_id": leg.run_id,
@@ -101,8 +111,13 @@ def route_request(tt: rc.Timetable, req: dict) -> list[dict]:
                     "transfer_status": None if t is None else t.status,
                 }
             )
-        depart = journey[0].dep + timedelta(minutes=1)
     return rows
+
+
+def route_request(tt: rc.Timetable, req: dict) -> list[dict]:
+    """Legs of up to N_ROUTES routes for one request."""
+    journeys = find_journeys(tt, req["src"], req["dst"], req["depart"])
+    return legs_frame(journeys, req["request_id"])
 
 
 def build(split: str, n: int = N_REQUESTS, seed: int = 0) -> tuple[pl.DataFrame, ...]:

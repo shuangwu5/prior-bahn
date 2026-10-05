@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 
 from dbdelay.model.features import EVENTS, shared_categories, to_frame, usable_rows
 
-VERSION = "v3.5"
+VERSION = "v3.5"  # "v3.5-fast" is the faster variant (API only)
 QUANTILES = [0.5, 0.8, 0.95]
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -20,12 +20,12 @@ def load_token() -> None:
     os.environ["TABPFN_TOKEN"] = os.environ["PRIORLABS_API_KEY"]
 
 
-def regressor(local: bool = False):
+def regressor(local: bool = False, version: str = VERSION):
     if local:
         from tabpfn import TabPFNRegressor
     else:
         from tabpfn_client import TabPFNRegressor
-    return TabPFNRegressor.create_default_for_version(VERSION)
+    return TabPFNRegressor.create_default_for_version(version)
 
 
 def predict_delays(
@@ -36,6 +36,7 @@ def predict_delays(
     local: bool = False,
     extra: tuple[str, ...] = (),
     change_from: str | None = None,
+    version: str = VERSION,
 ) -> pl.DataFrame:
     """Quantiles of the `model` delay ("arr" or "dep") for every query row.
 
@@ -62,7 +63,7 @@ def predict_delays(
     target = train[EVENTS[model]["target"]].to_numpy().astype(float)
     if change_from is not None:
         target = target - train[change_from].fill_null(0).to_numpy().astype(float)
-    reg = regressor(local)
+    reg = regressor(local, version)
     reg.fit(to_frame(train, model, categories, extra), target)
     # the client needs plain Python floats for the quantile levels
     out = reg.predict(
