@@ -169,50 +169,60 @@ def transfer_held(arr: datetime, incoming: dict, dep: datetime, outgoing: dict):
 
 
 st.set_page_config(page_title="Prior Bahn", layout="wide")
-st.title("Prior Bahn")
-st.caption(
-    f"Train-only routes on the timetable from {DATA_DAYS[0]:%-d} to "
-    f"{DATA_DAYS[1]:%-d %B %Y}, ranked by earlier arrival, then fewer transfers. "
-    "Delays are predicted with TabPFN from what was known at the chosen time."
-)
+# the form and the route cards share one centered column, 80% of the page wide
+_, main, _ = st.columns([1, 8, 1])
+with main:
+    st.title("Prior Bahn", anchor=False)
+    st.caption(
+        f"Train-only routes on the timetable from {DATA_DAYS[0]:%-d} to "
+        f"{DATA_DAYS[1]:%-d %B %Y}, ranked by earlier arrival, then fewer transfers. "
+        "Delays are predicted with TabPFN from what was known at the chosen time."
+    )
 
-with st.form("query"):
-    col_from, col_to = st.columns(2)
-    col_day, col_time = st.columns(2)
-    day = col_day.date_input(
-        "Date", value=date(2026, 9, 24), min_value=DATA_DAYS[0], max_value=DATA_DAYS[1]
-    )
-    stations = get_timetable(day).stations
-    src_name = col_from.selectbox(
-        "From", stations, index=stations.index("Freiburg (Breisgau) Hbf")
-    )
-    dst_name = col_to.selectbox(
-        "To", stations, index=stations.index("Berlin Hauptbahnhof")
-    )
-    now_time = col_time.time_input(
-        "Now (earliest departure)", value=time(8, 0), step=timedelta(minutes=5)
-    )
-    model_name = st.radio("Model", list(MODELS), horizontal=True)
-    submitted = st.form_submit_button("Find routes", type="primary")
+    with st.form("query"):
+        col_from, col_to = st.columns(2)
+        col_day, col_time = st.columns(2)
+        day = col_day.date_input(
+            "Date",
+            value=date(2026, 9, 24),
+            min_value=DATA_DAYS[0],
+            max_value=DATA_DAYS[1],
+        )
+        stations = get_timetable(day).stations
+        src_name = col_from.selectbox(
+            "From", stations, index=stations.index("Freiburg (Breisgau) Hbf")
+        )
+        dst_name = col_to.selectbox(
+            "To", stations, index=stations.index("Berlin Hauptbahnhof")
+        )
+        now_time = col_time.time_input(
+            "Now (earliest departure)", value=time(8, 0), step=timedelta(minutes=5)
+        )
+        model_name = st.radio("Model", list(MODELS), horizontal=True)
+        submitted = st.form_submit_button("Find routes", type="primary")
 
-if submitted:
-    st.session_state["search"] = (day, src_name, dst_name, now_time, model_name)
+    if submitted:
+        st.session_state["search"] = (day, src_name, dst_name, now_time, model_name)
 
-if "search" in st.session_state:
-    day, src_name, dst_name, now_time, model_name = st.session_state["search"]
-    if src_name == dst_name:
-        st.warning("Pick two different stations.")
-        st.stop()
-    with st.spinner("Predicting delays with TabPFN..."):
-        try:
-            routes, seconds = plan(
-                day, src_name, dst_name, now_time, MODELS[model_name]
-            )
-        except RuntimeError as error:  # tabpfn_client: the API is busy or unreachable
-            st.error(f"TabPFN is not reachable right now, please try again. ({error})")
+    if "search" in st.session_state:
+        day, src_name, dst_name, now_time, model_name = st.session_state["search"]
+        if src_name == dst_name:
+            st.warning("Pick two different stations.")
             st.stop()
-    if not routes:
-        st.info("No route found for that time.")
-        st.stop()
-    st.caption(f"{model_name} predicted the delays in {seconds:.1f} s.")
-    st.html(render.page(routes))
+        with st.spinner("Predicting delays with TabPFN..."):
+            try:
+                routes, seconds = plan(
+                    day, src_name, dst_name, now_time, MODELS[model_name]
+                )
+            except (
+                RuntimeError
+            ) as error:  # tabpfn_client: the API is busy or unreachable
+                st.error(
+                    f"TabPFN is not reachable right now, please try again. ({error})"
+                )
+                st.stop()
+        if not routes:
+            st.info("No route found for that time.")
+            st.stop()
+        st.caption(f"{model_name} predicted the delays in {seconds:.1f} s.")
+        st.html(render.page(routes))

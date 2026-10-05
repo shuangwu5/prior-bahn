@@ -16,7 +16,7 @@ CSS = """
 .rr { --card:#ffffff; --ink:#1d1d1b; --muted:#5f5e58; --line:#e3e1da; --rail:#9a978e;
   --train:#2f4a6d; --train-ink:#ffffff; --badge:#1d1d1b; --badge-ink:#ffffff;
   --l1:#1f7a4a; --l2:#5c9e3a; --l3:#c08a00; --l4:#c0441f; --late:#c0441f; --ontime:#1f7a4a;
-  color: var(--ink); font-size: 15px; line-height: 1.45; max-width: 1180px; }
+  color: var(--ink); font-size: 15px; line-height: 1.45; }
 @media (prefers-color-scheme: dark) {
   .rr { --card:#22221f; --ink:#f1efe8; --muted:#b0ada3; --line:#3a3934; --rail:#6d6a62;
     --train:#8fb0dc; --train-ink:#111111; --badge:#f1efe8; --badge-ink:#161614;
