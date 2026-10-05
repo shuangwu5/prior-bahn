@@ -116,7 +116,7 @@ pushed). What is left is the demo video and the submission.
 | Last known delay | `priorbahn/model/last_known.py` | Features plus "predict the change". Context rows replay their day at the same clock time. |
 | TabPFN call | `priorbahn/model/predict.py`, `priorbahn/model/request.py` | `version` "v3.5" or "v3.5-fast", `local` or API. `request.py` holds the final setup. |
 | Transfer levels and ranking | `priorbahn/risk.py` | Four levels with 2 min to change trains. Ranking: 80% arrival, then fewer transfers. |
-| Evaluation | `priorbahn/eval/run_requests.py`, `priorbahn/eval/transfers.py`, `priorbahn/eval/baselines.py` | 198 validation and 191 test searches, arrivals only. Baselines `global`, `train_station`, `carry_forward`, all with 14 days of history. 95% ranges by resampling searches. |
+| Evaluation | `priorbahn/eval/run_requests.py`, `priorbahn/eval/transfers.py`, `priorbahn/eval/baselines.py` | 198 validation and 191 test searches, arrivals only. Baselines `global`, `train_station`, `carry_forward`, all with 14 days of history, and `xgboost` (`priorbahn/eval/xgboost_baseline.py`: one model per request day on those 14 days, at most 200,000 rows per train type, same features as TabPFN plus the last known delay, each training row with a random "now" up to 6 h before its event; about 3 min per model). 95% ranges by resampling searches. |
 | App | `app/app.py`, `app/render.py` | Cards with timeline, colored transfer dots, DB-style stop list, in-page "Show what actually happened" switch, model choice, prediction time. `LOCAL = True` (API credits are nearly used up). |
 | Tests | `tests/` | 26 unit tests. `tests/test_app_ui.py` checks the app in Chrome with Playwright, only when the app runs at `APP_URL`. |
 | Docs | `README.md`, this file, `data-prep-plan.md` | README has results, setup, limitations. The experiment log is `data/eval/README.md` (not in git, experiments 1–10). |
@@ -127,15 +127,21 @@ Results, arrival pinball (lower is better), all methods with the 14 days before 
 |---|---|---|---|---|
 | Validation (1,194 arrivals) | `train_station` | 2.41 | 2.72 | 1.99 |
 | | `carry_forward` | 2.42 | 2.72 | 2.00 |
+| | `xgboost` | 2.34 | 2.78 | 1.74 |
 | | TabPFN | 2.28 | 2.79 | 1.55 |
 | Test (1,118 arrivals, run once) | `train_station` | 2.48 | 2.72 | 2.17 |
 | | `carry_forward` | 2.27 | 2.72 | 1.71 |
+| | `xgboost` | 2.17 | 2.70 | 1.52 |
 | | TabPFN | 2.13 | 2.65 | 1.49 |
 
 On running trains TabPFN beats "the delay stays the same" in both weeks (test: −0.21, 95%
 range −0.44 to −0.01). On trains not started there is no clear difference to `train_station`
 (test −0.07, range −0.32 to +0.18; validation +0.08). Transfer levels held 91–93% / 80–84% /
-62–69% / 38–41% (very likely / likely / uncertain / unlikely). The early per-leg evaluation
+62–69% / 38–41% (very likely / likely / uncertain / unlikely). Against `xgboost`, TabPFN
+is about level: better on running trains in the validation week (−0.19, range −0.39 to
+−0.02), no clear difference in the test week (−0.03, range −0.17 to +0.13). `xgboost` has
+the best calibrated quantiles (test: 51% / 79% / 96% under q50 / q80 / q95). It does not
+see the request day's other trains, which the TabPFN context holds. The early per-leg evaluation
 on 300 sampled runs (`priorbahn/eval/run.py`, experiments 1–3) is superseded.
 
 ## Left, in order
@@ -157,7 +163,6 @@ on 300 sampled runs (`priorbahn/eval/run.py`, experiments 1–3) is superseded.
    - TabPFN 3.5 against 3.5 Fast: only a 2-search timing test (Fast about 10% slower, too few
      to judge). The app shows the prediction time of each search for a comparison by hand.
    - TabPFN's q80 and q95 are a bit optimistic (74% and 91% of arrivals under them).
-   - Gradient-boosted baseline: written, too slow to run.
    - Proposals in `docs/bahnvorhersage-lessons.md` not adopted (CRPS, geography features).
 
 ## How to pick it up

@@ -45,7 +45,17 @@ def with_last_known(
         )
     else:
         cutoff = pl.lit(now)
+    return at_cutoff(rows, stops, cutoff, model)
 
+
+def at_cutoff(
+    rows: pl.DataFrame, stops: pl.LazyFrame, cutoff: pl.Expr, model: str
+) -> pl.DataFrame:
+    """
+    `rows` with the COLUMNS for their `model` event, known before `cutoff`, an
+    expression on `rows` that can differ per row.
+    """
+    planned = pl.col(f"planned_{model}")
     # all stops of the rows' runs, numbered 1, 2, 3, ... by planned time within each run
     runs = (
         stops.filter(pl.col("run_id").is_in(rows["run_id"].unique().implode()))
