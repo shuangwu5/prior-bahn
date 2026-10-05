@@ -171,8 +171,8 @@ def build() -> pl.DataFrame:
         planned_dep="departure_planned_time",
         arr_canceled=arr_canceled,
         dep_canceled=dep_canceled,
-        # delay_in_min is the delay of the row's own event (see the exploration
-        # notebook), so both delays are recomputed from the time columns.
+        # delay_in_min is the delay of the row's own event only, so both delays
+        # are recomputed from the time columns.
         # A canceled event has no usable delay, so it becomes null.
         arr_delay=pl.when(~arr_canceled).then(
             null_date_errors(
