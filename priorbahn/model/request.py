@@ -9,10 +9,10 @@ from datetime import datetime
 
 import polars as pl
 
-from dbdelay.model import last_known
-from dbdelay.model.context import build_context
-from dbdelay.model.features import with_days_ago
-from dbdelay.model.predict import QUANTILES, VERSION, predict_delays
+from priorbahn.model import last_known
+from priorbahn.model.context import build_context
+from priorbahn.model.features import with_days_ago
+from priorbahn.model.predict import QUANTILES, VERSION, predict_delays
 
 SIZE = 5_000
 SAME_TRAIN_DAYS = 14

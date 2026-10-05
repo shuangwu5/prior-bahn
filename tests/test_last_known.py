@@ -7,7 +7,7 @@ from datetime import date, datetime, time, timedelta
 
 import polars as pl
 
-from dbdelay.model.last_known import with_last_known
+from priorbahn.model.last_known import with_last_known
 
 DAY = date(2026, 9, 20)
 WEEK_AGO = DAY - timedelta(days=7)

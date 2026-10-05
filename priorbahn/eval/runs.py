@@ -5,14 +5,14 @@ rows of each run. Runs are drawn in equal numbers from a few train groups, so th
 groups such as long-distance trains get enough runs. Overall scores are weighted back to
 each group's real share of rows (see `group_weights`).
 
-Run from the repo root: uv run --no-sync python -m dbdelay.eval.runs validation
+Run from the repo root: uv run --no-sync python -m priorbahn.eval.runs validation
 """
 
 import sys
 
 import polars as pl
 
-from dbdelay.eval import paths
+from priorbahn.eval import paths
 
 STOPS = "data/processed/stops.parquet"
 RUNS_PER_GROUP = 60

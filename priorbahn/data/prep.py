@@ -1,7 +1,7 @@
 """Build the transformed `stops` table from the raw monthly files.
 
 Follows docs/data-prep-plan.md: schedule-only columns, no lagged history features.
-Run from the repo root: uv run --no-sync python -m dbdelay.data.prep
+Run from the repo root: uv run --no-sync python -m priorbahn.data.prep
 """
 
 from pathlib import Path

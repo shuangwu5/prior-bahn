@@ -12,7 +12,7 @@ the browser alone, so opened stop lists stay open.
 from html import escape
 from itertools import pairwise
 
-from dbdelay.risk import CHANGE_MIN, LEVELS
+from priorbahn.risk import CHANGE_MIN, LEVELS
 
 CSS = """
 <style>

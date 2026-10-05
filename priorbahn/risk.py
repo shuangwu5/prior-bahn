@@ -31,7 +31,7 @@ ROUTE = ["request_id", "route"]
 
 
 def with_arrival_delays(legs: pl.DataFrame, pred: pl.DataFrame) -> pl.DataFrame:
-    """`legs` (one row per leg, see dbdelay.eval.requests.legs_frame) with the predicted
+    """`legs` (one row per leg, see priorbahn.eval.requests.legs_frame) with the predicted
     arrival delay at each leg's alighting stop. `pred` has request_id, run_id, stop_num and
     q50, q80, q95."""
     return legs.join(

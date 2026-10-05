@@ -7,7 +7,7 @@ import numpy as np
 import polars as pl
 from dotenv import load_dotenv
 
-from dbdelay.model.features import EVENTS, shared_categories, to_frame, usable_rows
+from priorbahn.model.features import EVENTS, shared_categories, to_frame, usable_rows
 
 VERSION = "v3.5"  # "v3.5-fast" is the faster variant (API only)
 QUANTILES = [0.5, 0.8, 0.95]

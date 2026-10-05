@@ -6,7 +6,7 @@ of departures, and departure times are spread evenly over the hours. Each reques
 like in the app, and the legs of its routes are saved so every model is scored on the same
 rows.
 
-Run from the repo root: uv run --no-sync python -m dbdelay.eval.requests validation
+Run from the repo root: uv run --no-sync python -m priorbahn.eval.requests validation
 """
 
 import sys
@@ -15,10 +15,10 @@ from datetime import date, datetime, timedelta
 import numpy as np
 import polars as pl
 
-from dbdelay.eval import paths
-from dbdelay.eval.runs import train_group
-from dbdelay.model.context import actual_time
-from dbdelay.router import core as rc
+from priorbahn.eval import paths
+from priorbahn.eval.runs import train_group
+from priorbahn.model.context import actual_time
+from priorbahn.router import core as rc
 
 STOPS = "data/processed/stops.parquet"
 WEEKS = {

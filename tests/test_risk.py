@@ -8,7 +8,7 @@ from datetime import date, datetime, time
 import polars as pl
 import pytest
 
-from dbdelay import risk
+from priorbahn import risk
 
 
 def at(hour: int, minute: int = 0) -> datetime:

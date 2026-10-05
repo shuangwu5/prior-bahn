@@ -7,7 +7,7 @@ from datetime import date, datetime, time, timedelta
 
 import polars as pl
 
-from dbdelay.eval.baselines import global_quantiles
+from priorbahn.eval.baselines import global_quantiles
 
 DAY = date(2026, 9, 20)
 

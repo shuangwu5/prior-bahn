@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from dbdelay.router import core as rc
+from priorbahn.router import core as rc
 
 RAW = Path(__file__).resolve().parents[1] / rc.PATH
 DAY = datetime.combine(date(2026, 9, 24), datetime.min.time())  # naive, like the data

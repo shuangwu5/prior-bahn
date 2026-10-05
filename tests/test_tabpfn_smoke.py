@@ -63,7 +63,7 @@ def token() -> None:
 @pytest.fixture(scope="module")
 def data():
     if not STOPS.exists():
-        pytest.skip("run dbdelay/data/prep.py first")
+        pytest.skip("run priorbahn/data/prep.py first")
     train, val = load_sample("context", N_TRAIN), load_sample("validation", N_VAL)
     cats = {c: {v: i for i, v in enumerate(train[c].unique().to_list())} for c in CAT}
     return (

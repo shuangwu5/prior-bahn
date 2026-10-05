@@ -58,10 +58,10 @@ Facts from the September file (14.8M stop events, 5,284 stations):
      1. Same train (done). First the stops the train passed on the request day before "now", latest stop first. These come from the query's own runs and are the strongest signal. Then the whole rides of the same train on the earlier days, most recent day first (planned October 5; before: only at the stations of the query rows).
      2. Other trains at those stations (done). First the rows of the 60 minutes before "now" on the request day, which show a disruption that is going on right now. Then rows of the earlier days in the 60 minutes before each query row's planned time (planned October 5: on all 7 days; before: only on the same weekday). Both are split evenly over the train types of the request, like part 3. Rows a type cannot fill go to the other trains at the station (not S-Bahn, when the request has no S-Bahn train).
      3. A general sample from all stations that fills the rest of the context, split evenly over the train types of the request (done). A uniform sample would be about half S-Bahn (46% of all rows), whatever the request is about. The stops table itself is not subsampled: the router and the evaluation need all runs.
-   - Rows of the request day (done, `known_at` in `dbdelay/model/context.py`): an event counts only if its actual time is before "now". A planned time before "now" is not enough: a late train may not have left yet. Later events of the same row are set to empty. These rows need the `days_ago` feature (0 for the request day), otherwise TabPFN cannot tell them from older rows.
-   - Size (decided October 5): up to 5k context rows, with 14 days for the same train (`dbdelay/model/request.py`). Parts 1 and 2 take everything they find, part 3 fills the rest. If parts 1 and 2 alone have more rows than that, part 1 goes first. 10k rows with 7 days was tested and was worse and slower. The first tests used 2k rows split 40% / 40% / 20%.
+   - Rows of the request day (done, `known_at` in `priorbahn/model/context.py`): an event counts only if its actual time is before "now". A planned time before "now" is not enough: a late train may not have left yet. Later events of the same row are set to empty. These rows need the `days_ago` feature (0 for the request day), otherwise TabPFN cannot tell them from older rows.
+   - Size (decided October 5): up to 5k context rows, with 14 days for the same train (`priorbahn/model/request.py`). Parts 1 and 2 take everything they find, part 3 fills the rest. If parts 1 and 2 alone have more rows than that, part 1 goes first. 10k rows with 7 days was tested and was worse and slower. The first tests used 2k rows split 40% / 40% / 20%.
    - Measured on a Mac with local weights (10 query rows): about 5 s per call at 1k context rows, 17 s at 3k, 95 s at 10k. API timing is not measured yet.
-4. Route risk (done October 5, `dbdelay/risk.py`)
+4. Route risk (done October 5, `priorbahn/risk.py`)
    - Four levels per transfer: does it still leave 2 min to change trains when the incoming train is as late as its predicted q95 (very likely), q80 (likely) or q50 (uncertain)? Otherwise unlikely. The connecting train is taken as on time (only 0.14% of departures are early). Only the arrival model is needed.
    - A transfer held if the connecting train actually left at least 2 min after the incoming train arrived (a cancellation is a miss). With TabPFN, the four levels held 91% / 80% / 69% / 38% of the time in the validation week and 93% / 84% / 62% / 41% in the test week. TabPFN puts 43 to 45% of transfers into "very likely", the baselines (14 days of history) 38 to 39%.
    - Routes are ranked by the arrival reached with 80% certainty, then by fewer transfers. The levels are shown, but do not change the order.
@@ -110,13 +110,13 @@ pushed). What is left is the demo video and the submission.
 
 | Part | Where | Notes |
 |---|---|---|
-| Data prep, September only | `dbdelay/data/prep.py` → `data/processed/stops.parquet` | Data-quality fixes (section 4 of `data-prep-plan.md`). Context pool Sep 1–16, validation Sep 17–23, test Sep 24–30. |
-| Router | `dbdelay/router/core.py`, `find_journeys` in `dbdelay/eval/requests.py` | Up to 10 routes in the app, 3 in the evaluation. 5 min minimum transfer when planning. |
-| Context known at "now" | `dbdelay/model/context.py` | Parts 1–3 as in component 3. Final size: 5,000 rows, 14 days for the same train, 7 for the rest. |
-| Last known delay | `dbdelay/model/last_known.py` | Features plus "predict the change". Context rows replay their day at the same clock time. |
-| TabPFN call | `dbdelay/model/predict.py`, `dbdelay/model/request.py` | `version` "v3.5" or "v3.5-fast", `local` or API. `request.py` holds the final setup. |
-| Transfer levels and ranking | `dbdelay/risk.py` | Four levels with 2 min to change trains. Ranking: 80% arrival, then fewer transfers. |
-| Evaluation | `dbdelay/eval/run_requests.py`, `dbdelay/eval/transfers.py`, `dbdelay/eval/baselines.py` | 198 validation and 191 test searches, arrivals only. Baselines `global`, `train_station`, `carry_forward`, all with 14 days of history. 95% ranges by resampling searches. |
+| Data prep, September only | `priorbahn/data/prep.py` → `data/processed/stops.parquet` | Data-quality fixes (section 4 of `data-prep-plan.md`). Context pool Sep 1–16, validation Sep 17–23, test Sep 24–30. |
+| Router | `priorbahn/router/core.py`, `find_journeys` in `priorbahn/eval/requests.py` | Up to 10 routes in the app, 3 in the evaluation. 5 min minimum transfer when planning. |
+| Context known at "now" | `priorbahn/model/context.py` | Parts 1–3 as in component 3. Final size: 5,000 rows, 14 days for the same train, 7 for the rest. |
+| Last known delay | `priorbahn/model/last_known.py` | Features plus "predict the change". Context rows replay their day at the same clock time. |
+| TabPFN call | `priorbahn/model/predict.py`, `priorbahn/model/request.py` | `version` "v3.5" or "v3.5-fast", `local` or API. `request.py` holds the final setup. |
+| Transfer levels and ranking | `priorbahn/risk.py` | Four levels with 2 min to change trains. Ranking: 80% arrival, then fewer transfers. |
+| Evaluation | `priorbahn/eval/run_requests.py`, `priorbahn/eval/transfers.py`, `priorbahn/eval/baselines.py` | 198 validation and 191 test searches, arrivals only. Baselines `global`, `train_station`, `carry_forward`, all with 14 days of history. 95% ranges by resampling searches. |
 | App | `app/streamlit_app.py`, `app/render.py` | Cards with timeline, colored transfer dots, DB-style stop list, in-page "Show what actually happened" switch, model choice, prediction time. `LOCAL = True` (API credits are nearly used up). |
 | Tests | `tests/` | 26 unit tests. `tests/test_app_ui.py` checks the app in Chrome with Playwright, only when the app runs at `APP_URL`. |
 | Docs | `README.md`, this file, `data-prep-plan.md` | README has results, setup, limitations. The experiment log is `data/eval/README.md` (not in git, experiments 1–10). |
@@ -136,7 +136,7 @@ On running trains TabPFN beats "the delay stays the same" in both weeks (test: �
 range −0.44 to −0.01). On trains not started there is no clear difference to `train_station`
 (test −0.07, range −0.32 to +0.18; validation +0.08). Transfer levels held 91–93% / 80–84% /
 62–69% / 38–41% (very likely / likely / uncertain / unlikely). The early per-leg evaluation
-on 300 sampled runs (`dbdelay/eval/run.py`, experiments 1–3) is superseded.
+on 300 sampled runs (`priorbahn/eval/run.py`, experiments 1–3) is superseded.
 
 ## Left, in order
 
@@ -162,14 +162,14 @@ on 300 sampled runs (`dbdelay/eval/run.py`, experiments 1–3) is superseded.
 
 ## How to pick it up
 
-- Setup and commands: `README.md` (download September, `python -m dbdelay.data.prep`, app,
+- Setup and commands: `README.md` (download September, `python -m priorbahn.data.prep`, app,
   evaluation, tests).
 - Not in git: `data/` (raw file, stops table, evaluation caches and scores) and `.env` (the
   Prior Labs key, `PRIORLABS_API_KEY`). TabPFN predictions of the evaluation are cached per
   search in `data/eval/<split>/tabpfn_cache/`, so re-scoring needs no API calls.
 - API credits are nearly used up: use the local model (`--local` in the evaluation, `LOCAL`
   in the app). One app search takes about 50 s locally on a Mac, about 15–20 s via the API.
-- Streamlit keeps imported modules (`app/render.py`, `dbdelay/...`) after a code change.
+- Streamlit keeps imported modules (`app/render.py`, `priorbahn/...`) after a code change.
   Restart the server after changing them, not just "Rerun".
 - `st.html` cleans the HTML with DOMPurify, but `<style>`, `<details>` and `<input>` survive.
   The reveal switch is CSS only (`:has(#rr-reveal:checked)`), so opened stop lists stay open.

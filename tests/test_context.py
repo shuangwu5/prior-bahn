@@ -9,8 +9,8 @@ from pathlib import Path
 import polars as pl
 import pytest
 
-from dbdelay.model.context import build_context
-from dbdelay.model.features import (
+from priorbahn.model.context import build_context
+from priorbahn.model.features import (
     feature_columns,
     shared_categories,
     to_frame,
@@ -25,7 +25,7 @@ START = datetime.combine(DAY, time())  # "now" at the start of DAY
 @pytest.fixture(scope="module")
 def stops() -> pl.LazyFrame:
     if not STOPS.exists():
-        pytest.skip("run dbdelay/data/prep.py first")
+        pytest.skip("run priorbahn/data/prep.py first")
     return pl.scan_parquet(STOPS)
 
 

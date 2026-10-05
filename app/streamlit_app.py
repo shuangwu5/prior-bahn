@@ -2,7 +2,7 @@
 
 The user picks a day of the data, two stations and "now" (also the earliest departure).
 The app finds up to N routes, predicts the arrival delay of every leg with TabPFN from
-what was known at "now", gives each transfer a level (dbdelay/risk.py) and ranks the
+what was known at "now", gives each transfer a level (priorbahn/risk.py) and ranks the
 routes. A switch on the page reveals what actually happened that day. The cards are drawn by
 app/render.py.
 
@@ -21,11 +21,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import render
 
-from dbdelay import risk
-from dbdelay.eval import requests as rq
-from dbdelay.model.predict import load_token
-from dbdelay.model.request import predict_arrivals
-from dbdelay.router import core as rc
+from priorbahn import risk
+from priorbahn.eval import requests as rq
+from priorbahn.model.predict import load_token
+from priorbahn.model.request import predict_arrivals
+from priorbahn.router import core as rc
 
 STOPS = "data/processed/stops.parquet"
 DATA_DAYS = (date(2026, 9, 15), date(2026, 9, 30))  # the context needs 14 earlier days

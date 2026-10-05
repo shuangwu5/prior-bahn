@@ -15,7 +15,7 @@ from datetime import datetime
 
 import polars as pl
 
-from dbdelay.model.context import actual_time
+from priorbahn.model.context import actual_time
 
 COLUMNS = ("last_known_delay", "minutes_since_known", "stops_since_known")
 

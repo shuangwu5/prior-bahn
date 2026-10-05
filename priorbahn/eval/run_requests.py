@@ -1,6 +1,6 @@
 """Score the methods on router requests, with "now" set to each request's departure time.
 
-Needs the rows from `python -m dbdelay.eval.requests <split>`. Each request is predicted
+Needs the rows from `python -m priorbahn.eval.requests <split>`. Each request is predicted
 like in the app: one shared context for all its stops, built with what was known at
 "now" (`build_context`). Per leg, the departure at the boarding stop and the arrival at
 the alighting stop are scored. TabPFN predictions are cached per request, so an
@@ -9,9 +9,9 @@ interrupted run resumes where it stopped.
 Scores are saved under the subset "requests" (or "requests_<N>" with --limit N).
 
 Run from the repo root:
-uv run --no-sync python -m dbdelay.eval.run_requests validation <method> [--limit N]
+uv run --no-sync python -m priorbahn.eval.run_requests validation <method> [--limit N]
     [--models arr] [--workers 4] [--local]
-uv run --no-sync python -m dbdelay.eval.run_requests validation report [--subset requests]
+uv run --no-sync python -m priorbahn.eval.run_requests validation report [--subset requests]
     [--reference carry_forward]
 """
 
@@ -22,18 +22,18 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import numpy as np
 import polars as pl
 
-from dbdelay.eval import baselines, metrics, paths
-from dbdelay.model import last_known
-from dbdelay.model.context import build_context
-from dbdelay.model.features import with_days_ago
-from dbdelay.model.predict import load_token, predict_delays
+from priorbahn.eval import baselines, metrics, paths
+from priorbahn.model import last_known
+from priorbahn.model.context import build_context
+from priorbahn.model.features import with_days_ago
+from priorbahn.model.predict import load_token, predict_delays
 
 STOPS = "data/processed/stops.parquet"
 MODELS = ["arr", "dep"]
 # TabPFN variants: whether the last known delay is a feature and TabPFN predicts the change
 # from it (docs/data-prep-plan.md, section 10), the context size, and how many days back
 # the same train's rides go (the other context groups use 7 days). All use the context of
-# dbdelay.model.context (known at now) and "days_ago". The cached results of the older
+# priorbahn.model.context (known at now) and "days_ago". The cached results of the older
 # variants "tabpfn_now" and "tabpfn_midnight" (2,000 rows, all earlier days) stay in
 # data/eval, but their code is gone.
 TABPFN = {

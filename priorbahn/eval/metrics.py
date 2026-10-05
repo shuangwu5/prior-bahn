@@ -1,14 +1,14 @@
 """Per-leg scores for predicted delay quantiles.
 
 Every method returns the same frame: one row per query row with columns q50, q80, q95
-(see `dbdelay.model.predict.QUANTILES`). Scores use only rows with a known target, and
-weight each row with its group weight (see `dbdelay.eval.runs.group_weights`).
+(see `priorbahn.model.predict.QUANTILES`). Scores use only rows with a known target, and
+weight each row with its group weight (see `priorbahn.eval.runs.group_weights`).
 """
 
 import polars as pl
 
-from dbdelay.model.features import EVENTS
-from dbdelay.model.predict import QUANTILES
+from priorbahn.model.features import EVENTS
+from priorbahn.model.predict import QUANTILES
 
 QCOLS = {q: f"q{round(q * 100)}" for q in QUANTILES}
 

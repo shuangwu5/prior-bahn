@@ -3,7 +3,7 @@
 For query rows of day D, the history is every usable row of the HISTORY_DAYS run days
 before D whose events all happen before D starts, the same rule as the TabPFN context
 (which also looks back 14 days for the same train). Each baseline returns the same frame as
-`dbdelay.model.predict.predict_delays`: q50, q80, q95 per query row, in query order,
+`priorbahn.model.predict.predict_delays`: q50, q80, q95 per query row, in query order,
 null where the model's event does not exist.
 """
 
@@ -11,11 +11,11 @@ from datetime import datetime, time, timedelta
 
 import polars as pl
 
-from dbdelay.model.context import last_event_time
-from dbdelay.model.features import EVENTS
-from dbdelay.model.predict import QUANTILES
+from priorbahn.model.context import last_event_time
+from priorbahn.model.features import EVENTS
+from priorbahn.model.predict import QUANTILES
 
-HISTORY_DAYS = 14  # the same as SAME_TRAIN_DAYS in dbdelay/model/request.py
+HISTORY_DAYS = 14  # the same as SAME_TRAIN_DAYS in priorbahn/model/request.py
 MIN_COUNT = 10  # fewer past rows than this and the next, coarser level is used
 
 
@@ -112,7 +112,7 @@ def train_station_quantiles(
 
 def carry_forward(stops: pl.LazyFrame, query: pl.DataFrame, model: str) -> pl.DataFrame:
     """ "The delay stays the same": the median is the delay where the train was last seen
-    before now (`seen_delay`, see `dbdelay.eval.requests.request_rows`). The upper
+    before now (`seen_delay`, see `priorbahn.eval.requests.request_rows`). The upper
     quantiles add the usual spread of `train_station_quantiles` (its q80 and q95 minus its
     q50). A train not seen yet gets the `train_station_quantiles` values."""
     usual = train_station_quantiles(stops, query, model)

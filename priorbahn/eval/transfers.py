@@ -1,7 +1,7 @@
-"""Check the transfer levels of dbdelay.risk against what actually happened.
+"""Check the transfer levels of priorbahn.risk against what actually happened.
 
 Uses the router requests of one week and the arrival predictions of each method (TabPFN
-from its cache, see dbdelay.eval.run_requests; the baselines are computed). A transfer
+from its cache, see priorbahn.eval.run_requests; the baselines are computed). A transfer
 held if the connecting train left at least risk.CHANGE_MIN minutes after the incoming
 train arrived (a cancellation is a miss). Transfers with an unknown delay are left out.
 
@@ -9,16 +9,16 @@ A good method puts many transfers in level 1, and the held rate of each level fa
 its range (risk.LEVELS).
 
 Run from the repo root:
-uv run --no-sync python -m dbdelay.eval.transfers validation [--methods ...]
+uv run --no-sync python -m priorbahn.eval.transfers validation [--methods ...]
 """
 
 import argparse
 
 import polars as pl
 
-from dbdelay import risk
-from dbdelay.eval import paths
-from dbdelay.eval.run_requests import predict
+from priorbahn import risk
+from priorbahn.eval import paths
+from priorbahn.eval.run_requests import predict
 
 STOPS = "data/processed/stops.parquet"
 METHODS = ["tabpfn_14d_5k_last_known", "train_station", "carry_forward", "global"]
