@@ -32,6 +32,9 @@ DATA_DAYS = (date(2026, 9, 15), date(2026, 9, 30))  # the context needs 14 earli
 # more routes cost little: TabPFN's time depends on the context size, not on the number
 # of stops predicted. The evaluation used rq.N_ROUTES (3).
 MAX_ROUTES = 10
+# 5% to 95% in steps of 5%, for the delay curve at each transfer. It includes the 50%,
+# 80% and 95% that the transfer levels use, and costs about the same time as those three.
+QUANTILES = [round(0.05 * i, 2) for i in range(1, 20)]
 MODELS = {"TabPFN 3.5": "v3.5", "TabPFN 3.5 Fast": "v3.5-fast"}
 # run TabPFN on this machine; False uses the Prior Labs API (costs credits)
 LOCAL = True
@@ -80,6 +83,7 @@ def plan(
         now,
         local=LOCAL,
         version=version,
+        quantiles=QUANTILES,
     ).with_columns(request_id=pl.lit(0, pl.Int64))
     seconds = clock.perf_counter() - started
     print(
@@ -96,7 +100,8 @@ def plan(
         .select(STOP_COLUMNS)
         .collect()
     )
-    known = pred.select("run_id", "stop_num", "last_known_delay")
+    q_cols = [f"q{round(q * 100)}" for q in QUANTILES]
+    known = pred.select("run_id", "stop_num", "last_known_delay", *q_cols)
     out = []
     for r in summary.iter_rows(named=True):
         journey = journeys[r["route"]]
@@ -109,9 +114,10 @@ def plan(
             row = legs.filter(pl.col("route") == r["route"], pl.col("leg") == i).row(
                 0, named=True
             )
-            last_known = known.filter(
+            at_end = known.filter(
                 pl.col("run_id") == leg.run_id, pl.col("stop_num") == leg.to_stop_num
-            )["last_known_delay"]
+            )
+            end = at_end.row(0, named=True) if len(at_end) else {}
             route_legs.append(
                 {
                     "label": leg.label,
@@ -121,7 +127,13 @@ def plan(
                     "stops": leg_stops.to_dicts(),
                     "q50": row["q50"],
                     "q80": row["q80"],
-                    "last_known_delay": last_known[0] if len(last_known) else None,
+                    "last_known_delay": end.get("last_known_delay"),
+                    # (level, minutes) for the delay curve, empty without a prediction
+                    "quantiles": [
+                        (q, end[c])
+                        for q, c in zip(QUANTILES, q_cols)
+                        if end.get(c) is not None
+                    ],
                     "transfer_after": None,
                 }
             )
@@ -131,6 +143,7 @@ def plan(
             route_legs[t["leg"]]["transfer_after"] = {
                 "level": t["level"],
                 "planned_min": int((t["next_dep"] - t["arr"]).total_seconds() // 60),
+                "room_min": t["room_min"],
                 "held": transfer_held(t["arr"], incoming, t["next_dep"], outgoing),
             }
         out.append(
@@ -168,49 +181,66 @@ def transfer_held(arr: datetime, incoming: dict, dep: datetime, outgoing: dict):
     return df.select(risk.held(*(pl.col(c) for c in df.columns)))[0, 0]
 
 
-st.set_page_config(page_title="Reliable train routes", layout="wide")
-st.title("Reliable train routes")
-st.caption(
-    "Train-only routes on the August and September 2026 timetable, ranked by earlier "
-    "arrival, then fewer transfers. Delays are predicted with TabPFN from what was "
-    "known at the chosen time."
-)
-
-with st.form("query"):
-    col_from, col_to = st.columns(2)
-    col_day, col_time = st.columns(2)
-    day = col_day.date_input(
-        "Date", value=date(2026, 9, 24), min_value=DATA_DAYS[0], max_value=DATA_DAYS[1]
+st.set_page_config(page_title="Prior Bahn", layout="wide")
+# the form and the route cards share one centered column, 80% of the page wide
+_, main, _ = st.columns([1, 8, 1])
+with main:
+    st.title("Prior Bahn", anchor=False)
+    st.caption(
+        f"Train-only routes on the timetable from {DATA_DAYS[0]:%-d} to "
+        f"{DATA_DAYS[1]:%-d %B %Y}, ranked by earlier arrival, then fewer transfers. "
+        "Delays are predicted with TabPFN from what was known at the chosen time."
     )
-    stations = get_timetable(day).stations
-    src_name = col_from.selectbox(
-        "From", stations, index=stations.index("Heidelberg Hbf")
-    )
-    dst_name = col_to.selectbox("To", stations, index=stations.index("Lübeck Hbf"))
-    now_time = col_time.time_input(
-        "Now (earliest departure)", value=time(8, 0), step=timedelta(minutes=5)
-    )
-    model_name = st.radio("Model", list(MODELS), horizontal=True)
-    submitted = st.form_submit_button("Find routes", type="primary")
 
-if submitted:
-    st.session_state["search"] = (day, src_name, dst_name, now_time, model_name)
+    with st.form("query"):
+        col_from, col_to = st.columns(2)
+        col_day, col_time = st.columns(2)
+        day = col_day.date_input(
+            "Date",
+            value=date(2026, 9, 24),
+            min_value=DATA_DAYS[0],
+            max_value=DATA_DAYS[1],
+        )
+        stations = get_timetable(day).stations
+        src_name = col_from.selectbox(
+            "From", stations, index=stations.index("Freiburg (Breisgau) Hbf")
+        )
+        dst_name = col_to.selectbox(
+            "To", stations, index=stations.index("Berlin Hauptbahnhof")
+        )
+        now_time = col_time.time_input(
+            "Now (earliest departure)", value=time(8, 0), step=timedelta(minutes=5)
+        )
+        model_name = st.radio(
+            "Model",
+            list(MODELS),
+            index=list(MODELS).index("TabPFN 3.5 Fast"),
+            horizontal=True,
+        )
+        submitted = st.form_submit_button("Find routes", type="primary")
 
-if "search" in st.session_state:
-    day, src_name, dst_name, now_time, model_name = st.session_state["search"]
-    if src_name == dst_name:
-        st.warning("Pick two different stations.")
-        st.stop()
-    with st.spinner("Predicting delays with TabPFN..."):
-        try:
-            routes, seconds = plan(
-                day, src_name, dst_name, now_time, MODELS[model_name]
-            )
-        except RuntimeError as error:  # tabpfn_client: the API is busy or unreachable
-            st.error(f"TabPFN is not reachable right now, please try again. ({error})")
+    if submitted:
+        st.session_state["search"] = (day, src_name, dst_name, now_time, model_name)
+
+    if "search" in st.session_state:
+        day, src_name, dst_name, now_time, model_name = st.session_state["search"]
+        if src_name == dst_name:
+            st.warning("Pick two different stations.")
             st.stop()
-    if not routes:
-        st.info("No route found for that time.")
-        st.stop()
-    st.caption(f"{model_name} predicted the delays in {seconds:.1f} s.")
-    st.html(render.page(routes))
+        with st.spinner("Predicting delays with TabPFN..."):
+            try:
+                routes, seconds = plan(
+                    day, src_name, dst_name, now_time, MODELS[model_name]
+                )
+            except (
+                RuntimeError
+            ) as error:  # tabpfn_client: the API is busy or unreachable
+                st.error(
+                    f"TabPFN is not reachable right now, please try again. ({error})"
+                )
+                st.stop()
+        if not routes:
+            st.info("No route found for that time.")
+            st.stop()
+        st.caption(f"{model_name} predicted the delays in {seconds:.1f} s.")
+        st.html(render.page(routes))

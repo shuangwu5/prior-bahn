@@ -12,7 +12,7 @@ import polars as pl
 from dbdelay.model import last_known
 from dbdelay.model.context import build_context
 from dbdelay.model.features import with_days_ago
-from dbdelay.model.predict import VERSION, predict_delays
+from dbdelay.model.predict import QUANTILES, VERSION, predict_delays
 
 SIZE = 5_000
 SAME_TRAIN_DAYS = 14
@@ -24,9 +24,10 @@ def predict_arrivals(
     now: datetime,
     local: bool = False,
     version: str = VERSION,
+    quantiles: list[float] = QUANTILES,
 ) -> pl.DataFrame:
-    """Arrival delay quantiles (q50, q80, q95) for the stops in `keys` (run_id, stop_num),
-    with their `last_known_delay` and `minutes_since_known` (empty: not started)."""
+    """Arrival delay quantiles (q50, q80, q95 by default) for the stops in `keys` (run_id,
+    stop_num), with their `last_known_delay` and `minutes_since_known` (empty: not started)."""
     query = stops.join(
         keys.select("run_id", "stop_num").unique().lazy(), on=["run_id", "stop_num"]
     ).collect()
@@ -47,6 +48,7 @@ def predict_arrivals(
         extra=("days_ago", *last_known.COLUMNS),
         change_from="last_known_delay",
         version=version,
+        quantiles=quantiles,
     )
     return query.select(
         "run_id", "stop_num", "last_known_delay", "minutes_since_known"
