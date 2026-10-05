@@ -81,8 +81,8 @@ them:
 | Unlikely | 24% | 38% | 41% |
 
 TabPFN puts more transfers into "very likely" than the baselines (43 to 45% against 38 to
-39%), and they hold a little more often (91 to 93% against 89 to 91%). Details and all experiments: `docs/plan.md` and
-`data/eval/README.md` (made by the evaluation).
+39%), and they hold a little more often (91 to 93% against 89 to 91%). Details and all
+experiments: `data/eval/README.md` (made by the evaluation).
 
 ## Run it
 
@@ -152,7 +152,6 @@ when the app is running at `APP_URL` (default `http://localhost:8502`).
 | `priorbahn/risk.py` | transfer levels and route ranking |
 | `priorbahn/eval/` | baselines, metrics, evaluation on sampled searches |
 | `app/` | the Streamlit app |
-| `docs/` | plans, data notes, lessons from the bahnvorhersage project |
 
 ## Limitations
 
