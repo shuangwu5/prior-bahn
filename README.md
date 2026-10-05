@@ -49,14 +49,24 @@ better):
 | Same delays as all trains (`global`) | 3.39 | 3.63 | 3.10 |
 | This train at this station, past days (`train_station`) | 2.48 | 2.72 | 2.17 |
 | The delay stays the same (`carry_forward`) | 2.27 | 2.72 | 1.71 |
+| XGBoost, one model per day (`xgboost`) | 2.17 | 2.70 | 1.52 |
 | **TabPFN-3.5** | **2.13** | **2.65** | **1.49** |
 
 All methods use the same history: the 14 days before the search. For a train that has not
-started, `carry_forward` has no delay to carry and uses `train_station`.
+started, `carry_forward` has no delay to carry and uses `train_station`. XGBoost is trained
+once per day on that history (about 2.4 million rows, at most 200,000 per train type, about
+3 minutes) with the same features as TabPFN, including the train's last known delay.
+TabPFN gets 5,000 rows per search and no training. Its rows also include trains of the
+search day known before "now", which XGBoost does not see.
 
 - **Trains already running:** TabPFN beats "the delay stays the same" by 0.21 (95% range
   0.01 to 0.44), the case that matters most for "will I make my connection?". It also did
   in the validation week (1.55 against 2.00).
+- **Against XGBoost:** about level. In the validation week TabPFN was better on running
+  trains (1.55 against 1.74, 95% range of the difference −0.39 to −0.02), in the test week
+  the difference is small and not clear (−0.03, range −0.17 to +0.13). XGBoost's quantiles
+  are the best calibrated: 51%, 79% and 96% of test arrivals stayed under its 50%, 80% and
+  95% levels.
 - **Trains not started yet:** no clear difference to the train's own history (test −0.07,
   95% range −0.32 to +0.18; validation +0.08).
 
@@ -114,6 +124,7 @@ uv run --no-sync python -m dbdelay.eval.requests validation          # sample an
 uv run --no-sync python -m dbdelay.eval.run_requests validation carry_forward --models arr
 uv run --no-sync python -m dbdelay.eval.run_requests validation tabpfn_14d_5k_last_known \
   --models arr --workers 4
+uv run --no-sync python -m dbdelay.eval.run_requests validation xgboost --models arr  # ~25 min
 uv run --no-sync python -m dbdelay.eval.run_requests validation report
 uv run --no-sync python -m dbdelay.eval.transfers validation         # transfer levels
 ```
