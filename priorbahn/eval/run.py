@@ -1,4 +1,5 @@
-"""Score TabPFN and the baselines on the sampled runs of one week (per-leg evaluation).
+"""
+Score TabPFN and the baselines on the sampled runs of one week (per-leg evaluation).
 
 Needs the sampled rows from `python -m priorbahn.eval.runs <split>`. TabPFN gets one shared
 context per run, built from the run's own stop rows as the query, like a request in the
@@ -140,8 +141,10 @@ def score_method(
 
 
 def report(split: str, subset: str, methods: list[str] | None) -> None:
-    """Scores of the saved `methods` of one subset (all saved ones by default), on the
-    runs that every one of them has scored."""
+    """
+    Scores of the saved `methods` of one subset (all saved ones by default), on the
+    runs that every one of them has scored.
+    """
     folder = paths.scores(split, subset, "x").parent
     methods = methods or sorted(p.stem for p in folder.glob("*.parquet"))
     scored = pl.concat(pl.read_parquet(paths.scores(split, subset, m)) for m in methods)

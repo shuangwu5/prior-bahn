@@ -1,4 +1,5 @@
-"""Feature lists and the conversion of stop rows into TabPFN input.
+"""
+Feature lists and the conversion of stop rows into TabPFN input.
 
 The lists follow "Feature lists (decided)" in docs/data-prep-plan.md.
 """
@@ -50,7 +51,8 @@ def to_frame(
     categories: dict[str, list],
     extra: tuple[str, ...] = (),
 ) -> pd.DataFrame:
-    """Pandas frame for TabPFN with the categorical columns as `category` dtype.
+    """
+    Pandas frame for TabPFN with the categorical columns as `category` dtype.
 
     `categories` is built once from the context and query rows together (see
     `shared_categories`), so both frames use the same category list. TabPFN

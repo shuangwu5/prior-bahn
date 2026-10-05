@@ -1,4 +1,5 @@
-"""Check the transfer levels of priorbahn.risk against what actually happened.
+"""
+Check the transfer levels of priorbahn.risk against what actually happened.
 
 Uses the router requests of one week and the arrival predictions of each method (TabPFN
 from its cache, see priorbahn.eval.run_requests; the baselines are computed). A transfer

@@ -1,4 +1,5 @@
-"""Build the one shared context for a request (docs/plan.md, component 3).
+"""
+Build the one shared context for a request (docs/plan.md, component 3).
 
 The context is made of rows of the stops table that are known at "now", the time the user
 picks (also the earliest departure). It uses the request day before "now" and the
@@ -64,7 +65,8 @@ def actual_time(event: str) -> pl.Expr:
 
 
 def known_at(stops: pl.LazyFrame, now: datetime) -> pl.LazyFrame:
-    """The stops table as it was known at `now`.
+    """
+    The stops table as it was known at `now`.
 
     An event is known only if its actual time is before `now`. A planned time before `now`
     is not enough: a late train may not have left yet. The delay of an event that is not
@@ -90,7 +92,8 @@ def build_context(
     seed: int = 0,
     skip_s_bahn: bool = True,
 ) -> pl.DataFrame:
-    """Context rows for `query` (rows of the stops table), as known at `now`.
+    """
+    Context rows for `query` (rows of the stops table), as known at `now`.
 
     Only events with an actual time before `now` are used (see `known_at`), from runs that
     started at most `days_back` days before the request day (`same_train_days` for the
@@ -194,7 +197,8 @@ def build_context(
 def _general_sample(
     stops: pl.LazyFrame, known: pl.LazyFrame, types: list[str], n: int, seed: int
 ) -> pl.DataFrame:
-    """`n` rows from all stations, split evenly over the train types of the query.
+    """
+    `n` rows from all stations, split evenly over the train types of the query.
 
     A uniform sample would be about half S-Bahn whatever the request is about, since
     S-Bahn has 46% of all rows. Here each train type of the request gets the same number
@@ -229,7 +233,8 @@ def _general_sample(
 def _split_by_type(
     pool: pl.DataFrame, types: list[str], n: int, seed: int
 ) -> pl.DataFrame:
-    """`n` rows of `pool`, the same number for each of `types`.
+    """
+    `n` rows of `pool`, the same number for each of `types`.
 
     When a type has too few rows, the rest is filled with other rows of the pool, of any
     type. When n does not divide, the first types get one row more.

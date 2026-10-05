@@ -1,4 +1,5 @@
-"""Checks of the last known delay on small made-up runs.
+"""
+Checks of the last known delay on small made-up runs.
 
 uv run --no-sync pytest tests/test_last_known.py
 """
@@ -19,8 +20,10 @@ def at(day: date, hour: int, minute: int = 0) -> datetime:
 
 
 def run(run_id: str, day: date, delays: list[tuple]) -> list[tuple]:
-    """Four stops A to D with fixed planned times on `day` and the given
-    (arr_delay, dep_delay) per stop."""
+    """
+    Four stops A to D with fixed planned times on `day` and the given
+    (arr_delay, dep_delay) per stop.
+    """
     planned = [
         (None, at(day, 13)),
         (at(day, 13, 40), at(day, 13, 50)),

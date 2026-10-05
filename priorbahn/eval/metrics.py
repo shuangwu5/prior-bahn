@@ -1,4 +1,5 @@
-"""Per-leg scores for predicted delay quantiles.
+"""
+Per-leg scores for predicted delay quantiles.
 
 Every method returns the same frame: one row per query row with columns q50, q80, q95
 (see `priorbahn.model.predict.QUANTILES`). Scores use only rows with a known target, and
@@ -22,7 +23,8 @@ def pinball(q: float) -> pl.Expr:
 def scored_rows(
     rows: pl.DataFrame, pred: pl.DataFrame, model: str, extra: tuple[str, ...] = ()
 ) -> pl.DataFrame:
-    """Query rows next to their predictions, kept only where the target is known.
+    """
+    Query rows next to their predictions, kept only where the target is known.
 
     `extra` names more columns of `rows` to keep, for breakdowns.
     """
@@ -50,7 +52,8 @@ def scored_rows(
 
 
 def score(df: pl.DataFrame, by: str | list[str] | None = None) -> pl.DataFrame:
-    """Weighted scores, overall or per value of `by`.
+    """
+    Weighted scores, overall or per value of `by`.
 
     - pinball_qXX: mean pinball loss at that quantile, and pinball the mean over quantiles
     - mae: mean absolute error of the median

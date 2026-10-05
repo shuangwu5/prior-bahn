@@ -1,4 +1,5 @@
-"""Checks of the transfer levels and the route ranking on made-up legs.
+"""
+Checks of the transfer levels and the route ranking on made-up legs.
 
 uv run --no-sync pytest tests/test_risk.py
 """

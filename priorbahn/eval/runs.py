@@ -1,4 +1,5 @@
-"""Sample whole runs of the validation or test week for the per-leg evaluation.
+"""
+Sample whole runs of the validation or test week for the per-leg evaluation.
 
 Every method (TabPFN and the baselines) is scored on the same sampled runs, using all stop
 rows of each run. Runs are drawn in equal numbers from a few train groups, so that rare

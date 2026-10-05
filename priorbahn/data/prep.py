@@ -1,4 +1,5 @@
-"""Build the transformed `stops` table from the raw monthly files.
+"""
+Build the transformed `stops` table from the raw monthly files.
 
 Follows docs/data-prep-plan.md: schedule-only columns, no lagged history features.
 Run from the repo root: uv run --no-sync python -m priorbahn.data.prep
@@ -60,7 +61,8 @@ def minutes_between(later: pd.Series, earlier: pd.Series) -> pd.Series:
 
 
 def null_date_errors(minutes: pd.Series) -> pd.Series:
-    """Set values that are off by about a day to <NA>.
+    """
+    Set values that are off by about a day to <NA>.
 
     The source sometimes has a planned or actual time on the wrong day. We cannot tell
     which side is wrong, so the value is not fixed but left empty.
@@ -100,7 +102,8 @@ def load_month(month: str) -> pd.DataFrame:
 
 
 def destination_in_station_spelling(df: pd.DataFrame, station: pd.Series) -> pd.Series:
-    """Final destination of each row, spelled like `station`.
+    """
+    Final destination of each row, spelled like `station`.
 
     The source writes destinations like xml_station_name ("Frankfurt(Main)Süd"), while
     station_name has "Frankfurt (Main) Süd". So each destination is translated through

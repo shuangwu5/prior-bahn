@@ -1,4 +1,5 @@
-"""Streamlit app: plan a train journey and see how reliable each route is.
+"""
+Streamlit app: plan a train journey and see how reliable each route is.
 
 The user picks a day of the data, two stations and "now" (also the earliest departure).
 The app finds up to N routes, predicts the arrival delay of every leg with TabPFN from
@@ -6,7 +7,7 @@ what was known at "now", gives each transfer a level (priorbahn/risk.py) and ran
 routes. A switch on the page reveals what actually happened that day. The cards are drawn by
 app/render.py.
 
-Run from the repo root: uv run --no-sync streamlit run app/streamlit_app.py
+Run from the repo root: uv run --no-sync streamlit run app/app.py
 """
 
 import sys
@@ -66,8 +67,10 @@ def short_label(label: str) -> str:
 def plan(
     day: date, src: str, dst: str, now_time: time, version: str
 ) -> tuple[list[dict], float]:
-    """The ranked routes (up to MAX_ROUTES), each a dict for render.card, and the seconds
-    TabPFN took."""
+    """
+    The ranked routes (up to MAX_ROUTES), each a dict for render.card, and the seconds
+    TabPFN took.
+    """
     tt = get_timetable(day)
     now = datetime.combine(day, now_time)
     journeys = rq.find_journeys(tt, src, dst, now, MAX_ROUTES)

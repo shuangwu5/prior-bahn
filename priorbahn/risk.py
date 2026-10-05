@@ -1,4 +1,5 @@
-"""Route risk from predicted arrival delays (docs/plan.md, component 4).
+"""
+Route risk from predicted arrival delays (docs/plan.md, component 4).
 
 Each transfer gets one of four levels. The question is whether the transfer still leaves
 CHANGE_MIN minutes to change trains when the incoming train is as late as its predicted
@@ -31,9 +32,11 @@ ROUTE = ["request_id", "route"]
 
 
 def with_arrival_delays(legs: pl.DataFrame, pred: pl.DataFrame) -> pl.DataFrame:
-    """`legs` (one row per leg, see priorbahn.eval.requests.legs_frame) with the predicted
+    """
+    `legs` (one row per leg, see priorbahn.eval.requests.legs_frame) with the predicted
     arrival delay at each leg's alighting stop. `pred` has request_id, run_id, stop_num and
-    q50, q80, q95."""
+    q50, q80, q95.
+    """
     return legs.join(
         pred.select(
             "request_id",
@@ -49,9 +52,11 @@ def with_arrival_delays(legs: pl.DataFrame, pred: pl.DataFrame) -> pl.DataFrame:
 
 
 def transfers(legs: pl.DataFrame) -> pl.DataFrame:
-    """One row per transfer, between leg `leg` and the next leg of the same route, with
+    """
+    One row per transfer, between leg `leg` and the next leg of the same route, with
     `room_min` (planned transfer time minus CHANGE_MIN) and `level` (1 to 4, see LEVELS;
-    empty without a prediction). Needs the columns of `with_arrival_delays`."""
+    empty without a prediction). Needs the columns of `with_arrival_delays`.
+    """
     nxt = legs.select(
         *ROUTE,
         (pl.col("leg") - 1).alias("leg"),
@@ -80,10 +85,12 @@ def transfers(legs: pl.DataFrame) -> pl.DataFrame:
 
 
 def routes(legs: pl.DataFrame) -> pl.DataFrame:
-    """One row per route: number of transfers, the weakest transfer level (1 for a direct
+    """
+    One row per route: number of transfers, the weakest transfer level (1 for a direct
     route), the planned arrival and the arrival reached with 50%, 80% and 95% certainty,
     ranked within each request (`rank` 1 is the best). Needs the columns of
-    `with_arrival_delays`."""
+    `with_arrival_delays`.
+    """
     weakest = (
         transfers(legs)
         .group_by(ROUTE)
@@ -122,9 +129,11 @@ def held(
     dep_delay: pl.Expr,
     dep_canceled: pl.Expr,
 ) -> pl.Expr:
-    """Whether a transfer actually worked: the connecting train left at least CHANGE_MIN
+    """
+    Whether a transfer actually worked: the connecting train left at least CHANGE_MIN
     minutes after the incoming train arrived. A canceled arrival or departure is a missed
-    transfer; an unknown delay gives an empty result."""
+    transfer; an unknown delay gives an empty result.
+    """
     gap = (
         dep + pl.duration(minutes=dep_delay) - arr - pl.duration(minutes=arr_delay)
     ).dt.total_minutes()

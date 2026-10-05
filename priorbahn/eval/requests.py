@@ -1,4 +1,5 @@
-"""Sample evaluation requests and route them (docs/plan.md, component 5).
+"""
+Sample evaluation requests and route them (docs/plan.md, component 5).
 
 A request is (start, destination, departure time) on one day of the validation or test
 week. Start and destination are drawn from the busiest stations, weighted by their number
@@ -133,7 +134,8 @@ def build(split: str, n: int = N_REQUESTS, seed: int = 0) -> tuple[pl.DataFrame,
 def request_rows(
     stops: pl.LazyFrame, requests: pl.DataFrame, legs: pl.DataFrame
 ) -> pl.DataFrame:
-    """The stop events scored for each request, one row per request, stop and event.
+    """
+    The stop events scored for each request, one row per request, stop and event.
 
     Per leg, two events: the departure at the boarding stop (`model` "dep") and the
     arrival at the alighting stop ("arr"). An event shared by several routes of one
@@ -179,8 +181,10 @@ def request_rows(
 
 
 def last_seen(runs: pl.LazyFrame, rows: pl.DataFrame) -> pl.DataFrame:
-    """Delay of each request's runs at their last event before now (same leak rule as the
-    context: the actual time must be before now)."""
+    """
+    Delay of each request's runs at their last event before now (same leak rule as the
+    context: the actual time must be before now).
+    """
     pairs = rows.select("request_id", "run_id", "now").unique()
     events = runs.collect().join(pairs, on="run_id")
     return (

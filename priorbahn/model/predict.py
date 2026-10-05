@@ -38,7 +38,8 @@ def predict_delays(
     change_from: str | None = None,
     version: str = VERSION,
 ) -> pl.DataFrame:
-    """Quantiles of the `model` delay ("arr" or "dep") for every query row.
+    """
+    Quantiles of the `model` delay ("arr" or "dep") for every query row.
 
     `extra` names feature columns used on top of the standard list, such as "days_ago"
     (see `features.with_days_ago`); both frames must have them.

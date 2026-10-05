@@ -26,7 +26,7 @@ not running yet (later legs, or trips planned in advance) are predicted from the
 - What the model predicts (decided October 4, replaces "live state is step two"): the change in delay, like bahnvorhersage's `delay_diff`. One model for all legs (`docs/data-prep-plan.md`, section 10).
   - Train already running at "now": the input is its last known delay (the delay at the last stop where we know it before "now"), and the model predicts how much that changes by the stop we care about. We have no DB forecasts, so the last known delay stands in for them. This is the headline case.
   - Train not started yet (later legs, or trips planned ahead): its last known delay is empty, and the model predicts the delay itself from the timetable and history. Needed in almost every request.
-- Models: TabPFN-3.5. The evaluation used the Prior Labs API (key in `.env`, not committed). The app runs TabPFN on this machine by default (`LOCAL` in `app/streamlit_app.py`, decided October 5 to save API credits), with TabPFN 3.5 or 3.5 Fast to choose in the form.
+- Models: TabPFN-3.5. The evaluation used the Prior Labs API (key in `.env`, not committed). The app runs TabPFN on this machine by default (`LOCAL` in `app/app.py`, decided October 5 to save API credits), with TabPFN 3.5 or 3.5 Fast to choose in the form.
 - Model setup (decided October 5): `tabpfn_14d_5k_last_known` for all legs, whether the train is running or not. Context of 5,000 rows: 7 days back, 14 days for the same train. Features: timetable, `days_ago` and the last known delay. Development and evaluation focus on arrivals: arrival and departure delays at one stop are within 1 min of each other at 93% of stops.
 - Demo: a Streamlit app. An agent wrapper is a stretch goal.
 
@@ -117,7 +117,7 @@ pushed). What is left is the demo video and the submission.
 | TabPFN call | `priorbahn/model/predict.py`, `priorbahn/model/request.py` | `version` "v3.5" or "v3.5-fast", `local` or API. `request.py` holds the final setup. |
 | Transfer levels and ranking | `priorbahn/risk.py` | Four levels with 2 min to change trains. Ranking: 80% arrival, then fewer transfers. |
 | Evaluation | `priorbahn/eval/run_requests.py`, `priorbahn/eval/transfers.py`, `priorbahn/eval/baselines.py` | 198 validation and 191 test searches, arrivals only. Baselines `global`, `train_station`, `carry_forward`, all with 14 days of history. 95% ranges by resampling searches. |
-| App | `app/streamlit_app.py`, `app/render.py` | Cards with timeline, colored transfer dots, DB-style stop list, in-page "Show what actually happened" switch, model choice, prediction time. `LOCAL = True` (API credits are nearly used up). |
+| App | `app/app.py`, `app/render.py` | Cards with timeline, colored transfer dots, DB-style stop list, in-page "Show what actually happened" switch, model choice, prediction time. `LOCAL = True` (API credits are nearly used up). |
 | Tests | `tests/` | 26 unit tests. `tests/test_app_ui.py` checks the app in Chrome with Playwright, only when the app runs at `APP_URL`. |
 | Docs | `README.md`, this file, `data-prep-plan.md` | README has results, setup, limitations. The experiment log is `data/eval/README.md` (not in git, experiments 1–10). |
 

@@ -1,4 +1,5 @@
-"""Router checks: a small made-up timetable, plus one real query if the data is there.
+"""
+Router checks: a small made-up timetable, plus one real query if the data is there.
 
 uv run --no-sync pytest tests/test_router.py
 """

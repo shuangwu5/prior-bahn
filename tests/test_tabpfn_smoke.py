@@ -1,4 +1,5 @@
-"""Smoke test for TabPFN-3.5 on the processed stops table.
+"""
+Smoke test for TabPFN-3.5 on the processed stops table.
 
 Fits 50 context rows and predicts 10 validation rows, through the Prior Labs
 API (client) and with local weights (local).

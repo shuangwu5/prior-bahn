@@ -1,4 +1,5 @@
-"""Context builder checks on the real stops table and on small made-up ones (no API calls).
+"""
+Context builder checks on the real stops table and on small made-up ones (no API calls).
 
 uv run --no-sync pytest tests/test_context.py
 """
@@ -55,7 +56,8 @@ def test_context_only_uses_earlier_days(stops, query):
 
 
 def made_up_stops(rows: list[tuple]) -> pl.DataFrame:
-    """A small stops table with the columns build_context reads, one row per stop.
+    """
+    A small stops table with the columns build_context reads, one row per stop.
 
     Each row is (run_id, run_day, train_key, planned_arr, planned_dep, arr_delay,
     dep_delay). All rows are at station "S". The train type is the first word of

@@ -24,8 +24,10 @@ def request_rows(split: str) -> Path:
 
 
 def request_cache(split: str, variant: str) -> Path:
-    """TabPFN predictions of one variant for the router requests, one row per request
-    and stop."""
+    """
+    TabPFN predictions of one variant for the router requests, one row per request
+    and stop.
+    """
     return EVAL / split / "tabpfn_cache" / f"requests_{variant}.parquet"
 
 

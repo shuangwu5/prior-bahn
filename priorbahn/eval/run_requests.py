@@ -1,4 +1,5 @@
-"""Score the methods on router requests, with "now" set to each request's departure time.
+"""
+Score the methods on router requests, with "now" set to each request's departure time.
 
 Needs the rows from `python -m priorbahn.eval.requests <split>`. Each request is predicted
 like in the app: one shared context for all its stops, built with what was known at
@@ -64,9 +65,11 @@ def tabpfn(
     local: bool,
     workers: int,
 ):
-    """Predictions for every row of `rows` and each of `models`, with columns KEYS, model
+    """
+    Predictions for every row of `rows` and each of `models`, with columns KEYS, model
     and QCOLS. `local` runs TabPFN on this machine instead of the Prior Labs API.
-    `workers` requests run at the same time (the API does the work, we mostly wait)."""
+    `workers` requests run at the same time (the API does the work, we mostly wait).
+    """
     if not local:
         load_token()
     config = TABPFN[variant]
@@ -208,8 +211,10 @@ def case() -> pl.Expr:
 
 
 def report(split: str, subset: str, methods: list[str] | None, reference: str) -> None:
-    """Scores of the saved methods of one subset, on the requests they all scored, and
-    each method's difference to `reference` with a 95% range (see `differences`)."""
+    """
+    Scores of the saved methods of one subset, on the requests they all scored, and
+    each method's difference to `reference` with a 95% range (see `differences`).
+    """
     folder = paths.scores(split, subset, "x").parent
     methods = methods or sorted(p.stem for p in folder.glob("*.parquet"))
     scored = pl.concat(
@@ -239,10 +244,12 @@ def report(split: str, subset: str, methods: list[str] | None, reference: str) -
 
 
 def differences(scored: pl.DataFrame, reference: str, n: int = 2000) -> pl.DataFrame:
-    """Mean pinball loss of each method minus that of `reference`, on the same events,
+    """
+    Mean pinball loss of each method minus that of `reference`, on the same events,
     per model and "seen" or "not seen". The 95% range comes from drawing the requests
     again with replacement `n` times: a range that includes 0 means no clear difference.
-    Delays have a long tail, so a few events can decide a mean."""
+    Delays have a long tail, so a few events can decide a mean.
+    """
     loss = pl.mean_horizontal(metrics.pinball(q) for q in metrics.QCOLS)
     wide = scored.with_columns(
         loss=loss,

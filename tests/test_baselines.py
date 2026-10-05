@@ -1,4 +1,5 @@
-"""Baseline checks on a small made-up stops table (no API calls).
+"""
+Baseline checks on a small made-up stops table (no API calls).
 
 uv run --no-sync pytest tests/test_baselines.py
 """

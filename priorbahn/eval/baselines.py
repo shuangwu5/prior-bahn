@@ -1,4 +1,5 @@
-"""Count-based baselines: empirical delay quantiles from the recent history.
+"""
+Count-based baselines: empirical delay quantiles from the recent history.
 
 For query rows of day D, the history is every usable row of the HISTORY_DAYS run days
 before D whose events all happen before D starts, the same rule as the TabPFN context
@@ -41,7 +42,8 @@ def _history(stops: pl.LazyFrame, day, model: str) -> pl.LazyFrame:
 def _per_day(
     stops: pl.LazyFrame, query: pl.DataFrame, model: str, levels
 ) -> pl.DataFrame:
-    """Quantiles for each query row from the first level with enough history.
+    """
+    Quantiles for each query row from the first level with enough history.
 
     `levels` is a list of key lists, from the finest to the coarsest; an empty list means
     all of the history.
@@ -101,9 +103,11 @@ def global_quantiles(
 def train_station_quantiles(
     stops: pl.LazyFrame, query: pl.DataFrame, model: str
 ) -> pl.DataFrame:
-    """Quantiles of the same train at the same station on past days. With fewer than
+    """
+    Quantiles of the same train at the same station on past days. With fewer than
     MIN_COUNT past rows, fall back to the station at the same planned hour, then to all
-    past rows."""
+    past rows.
+    """
     hour = EVENTS[model]["numeric"][0]
     return _per_day(
         stops, query, model, levels=[["train_key", "station"], ["station", hour], []]
@@ -111,10 +115,12 @@ def train_station_quantiles(
 
 
 def carry_forward(stops: pl.LazyFrame, query: pl.DataFrame, model: str) -> pl.DataFrame:
-    """ "The delay stays the same": the median is the delay where the train was last seen
+    """
+     "The delay stays the same": the median is the delay where the train was last seen
     before now (`seen_delay`, see `priorbahn.eval.requests.request_rows`). The upper
     quantiles add the usual spread of `train_station_quantiles` (its q80 and q95 minus its
-    q50). A train not seen yet gets the `train_station_quantiles` values."""
+    q50). A train not seen yet gets the `train_station_quantiles` values.
+    """
     usual = train_station_quantiles(stops, query, model)
     seen = query["seen_delay"].cast(pl.Float64)
     return usual.select(

@@ -1,4 +1,5 @@
-"""The last known delay of a train before "now" (docs/data-prep-plan.md, section 10).
+"""
+The last known delay of a train before "now" (docs/data-prep-plan.md, section 10).
 
 For every row and one event ("arr" or "dep"), three columns are added:
 - `last_known_delay`: the delay at the train's last event before the cutoff (empty: the
@@ -27,7 +28,8 @@ def with_last_known(
     model: str,
     replay: bool,
 ) -> pl.DataFrame:
-    """`rows` with the COLUMNS for their `model` event.
+    """
+    `rows` with the COLUMNS for their `model` event.
 
     `replay` is False for query rows (the cutoff is `now`) and True for context rows (the
     cutoff is the earliest of `now`, the same clock time on the day of the row's event, and

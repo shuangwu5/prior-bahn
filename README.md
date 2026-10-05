@@ -89,10 +89,10 @@ uv run --no-sync hf download piebro/deutsche-bahn-data --repo-type dataset \
 uv run --no-sync python -m priorbahn.data.prep
 
 # the app
-uv run --no-sync streamlit run app/streamlit_app.py
+uv run --no-sync streamlit run app/app.py
 ```
 
-The app runs TabPFN on your machine (`LOCAL = True` in `app/streamlit_app.py`). The first
+The app runs TabPFN on your machine (`LOCAL = True` in `app/app.py`). The first
 search downloads the model weights. One search takes about 50 seconds on a Mac. To use the
 Prior Labs API instead, set `LOCAL = False` and put your key in `.env` as
 `PRIORLABS_API_KEY=...`.
