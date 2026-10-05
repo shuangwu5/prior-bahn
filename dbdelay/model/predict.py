@@ -35,11 +35,16 @@ def predict_delays(
     quantiles: list[float] = QUANTILES,
     local: bool = False,
     extra: tuple[str, ...] = (),
+    change_from: str | None = None,
 ) -> pl.DataFrame:
     """Quantiles of the `model` delay ("arr" or "dep") for every query row.
 
     `extra` names feature columns used on top of the standard list, such as "days_ago"
     (see `features.with_days_ago`); both frames must have them.
+
+    With `change_from` (a column such as "last_known_delay"), TabPFN learns the change in
+    delay from that column, and the column is added back to the predicted quantiles. Rows
+    where it is empty learn and predict the delay itself.
 
     Query rows keep their order. Rows where the model's event does not exist (the arrival
     at a first stop, the departure at a last stop) have no input, and get null quantiles.
@@ -54,11 +59,11 @@ def predict_delays(
     train = usable_rows(context, model)
 
     categories = shared_categories(train, rows)
+    target = train[EVENTS[model]["target"]].to_numpy().astype(float)
+    if change_from is not None:
+        target = target - train[change_from].fill_null(0).to_numpy().astype(float)
     reg = regressor(local)
-    reg.fit(
-        to_frame(train, model, categories, extra),
-        train[EVENTS[model]["target"]].to_numpy().astype(float),
-    )
+    reg.fit(to_frame(train, model, categories, extra), target)
     # the client needs plain Python floats for the quantile levels
     out = reg.predict(
         to_frame(rows, model, categories, extra),
@@ -67,9 +72,14 @@ def predict_delays(
     )
     # put the predictions back at the rows that have an event, null elsewhere
     mask = has_event.to_numpy()
+    base = (
+        rows[change_from].fill_null(0).to_numpy().astype(float)
+        if change_from is not None
+        else 0.0
+    )
     cols = {}
     for q, p in zip(quantiles, out):
         full = np.full(len(query), np.nan)
-        full[mask] = np.asarray(p)
+        full[mask] = np.asarray(p) + base
         cols[f"q{round(q * 100)}"] = pl.Series(full).fill_nan(None)
     return pl.DataFrame(cols)
