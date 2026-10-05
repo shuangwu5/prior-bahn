@@ -10,7 +10,7 @@ import pandas as pd
 import pyarrow.parquet as pq
 
 RAW = "data/monthly_processed_data/data-2026-{month}.parquet"
-MONTHS = ["08", "09"]
+MONTHS = ["09"]  # TabPFN and the baselines look back at most 14 days
 OUT = Path("data/processed/stops.parquet")
 NON_TRAIN = "^(?:bus|sev|bsv)$"  # matched without regard to case
 # historic, special and one-off trains with no stable history, plus a few malformed
@@ -29,7 +29,7 @@ DROP_TYPES = [
 MAX_PLAUSIBLE_MIN = 1200
 
 # split by the day a run starts, see docs/plan.md
-FIRST_DAY, LAST_DAY = pd.Timestamp("2026-08-01"), pd.Timestamp("2026-09-30")
+FIRST_DAY, LAST_DAY = pd.Timestamp("2026-09-01"), pd.Timestamp("2026-09-30")
 VALIDATION_START, TEST_START = pd.Timestamp("2026-09-17"), pd.Timestamp("2026-09-24")
 
 # only these raw columns are needed, loading fewer columns saves a lot of memory
@@ -122,7 +122,8 @@ def destination_in_station_spelling(df: pd.DataFrame, station: pd.Series) -> pd.
 
 
 def build() -> pd.DataFrame:
-    # both months are loaded together: a run that starts on Aug 31 spills into September
+    # a run that starts on Aug 31 is in this file too, with its September stops: it is cut
+    # below, since a run belongs to the day it starts
     df = pd.concat([load_month(m) for m in MONTHS], ignore_index=True)
     df = df[df["run_day"].between(FIRST_DAY, LAST_DAY)]
 

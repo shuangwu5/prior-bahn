@@ -1,12 +1,13 @@
-"""Count-based baselines: empirical delay quantiles from the full history.
+"""Count-based baselines: empirical delay quantiles from the recent history.
 
-For query rows of day D, the history is every usable row of a run day before D (from
-Aug 1) whose events all happen before D starts, the same rule as the TabPFN context. Each baseline returns the same frame as
+For query rows of day D, the history is every usable row of the HISTORY_DAYS run days
+before D whose events all happen before D starts, the same rule as the TabPFN context
+(which also looks back 14 days for the same train). Each baseline returns the same frame as
 `dbdelay.model.predict.predict_delays`: q50, q80, q95 per query row, in query order,
 null where the model's event does not exist.
 """
 
-from datetime import datetime, time
+from datetime import datetime, time, timedelta
 
 import polars as pl
 
@@ -14,6 +15,7 @@ from dbdelay.model.context import last_event_time
 from dbdelay.model.features import EVENTS
 from dbdelay.model.predict import QUANTILES
 
+HISTORY_DAYS = 14  # the same as SAME_TRAIN_DAYS in dbdelay/model/request.py
 MIN_COUNT = 10  # fewer past rows than this and the next, coarser level is used
 
 
@@ -28,6 +30,7 @@ def _history(stops: pl.LazyFrame, day, model: str) -> pl.LazyFrame:
     event = EVENTS[model]
     return stops.filter(
         pl.col("run_day") < pl.lit(day),
+        pl.col("run_day") >= pl.lit(day - timedelta(days=HISTORY_DAYS)),
         # a run of an earlier day can go past midnight: keep its events of day D out
         last_event_time() < datetime.combine(day, time()),
         pl.col(event["target"]).is_not_null(),

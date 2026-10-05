@@ -28,7 +28,7 @@ from dbdelay.model.request import predict_arrivals
 from dbdelay.router import core as rc
 
 STOPS = "data/processed/stops.parquet"
-DATA_DAYS = (date(2026, 8, 15), date(2026, 9, 30))  # the context needs 14 earlier days
+DATA_DAYS = (date(2026, 9, 15), date(2026, 9, 30))  # the context needs 14 earlier days
 # more routes cost little: TabPFN's time depends on the context size, not on the number
 # of stops predicted. The evaluation used rq.N_ROUTES (3).
 MAX_ROUTES = 10
