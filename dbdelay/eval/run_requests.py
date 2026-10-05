@@ -6,11 +6,12 @@ like in the app: one shared context for all its stops, built with what was known
 the alighting stop are scored. TabPFN predictions are cached per request, so an
 interrupted run resumes where it stopped.
 
-Scores are saved under the subset "requests" (or "requests_<N>" with --limit N).
+Scores are saved under the subset "requests" (or "requests_<N>" with --limit N, or
+"requests_<day>" with --day YYYY-MM-DD).
 
 Run from the repo root:
 uv run --no-sync python -m dbdelay.eval.run_requests validation <method> [--limit N]
-    [--models arr] [--workers 4] [--local]
+    [--day YYYY-MM-DD] [--models arr] [--workers 4] [--local]
 uv run --no-sync python -m dbdelay.eval.run_requests validation report [--subset requests]
     [--reference carry_forward]
 """
@@ -23,6 +24,7 @@ import numpy as np
 import polars as pl
 
 from dbdelay.eval import baselines, metrics, paths
+from dbdelay.eval.xgboost_baseline import xgboost_quantiles
 from dbdelay.model import last_known
 from dbdelay.model.context import build_context
 from dbdelay.model.features import with_days_ago
@@ -49,6 +51,7 @@ BASELINES = {
     "global": baselines.global_quantiles,
     "train_station": baselines.train_station_quantiles,
     "carry_forward": baselines.carry_forward,
+    "xgboost": xgboost_quantiles,
 }
 METHODS = [*BASELINES, *TABPFN]
 QCOLS = ["q50", "q80", "q95"]
@@ -159,6 +162,7 @@ def score_method(
     split: str,
     method: str,
     limit: int | None,
+    day: str | None,
     models: list[str],
     local: bool,
     workers: int,
@@ -169,6 +173,8 @@ def score_method(
     if limit is not None:
         keep = rows["request_id"].unique().sort().head(limit).implode()
         rows = rows.filter(pl.col("request_id").is_in(keep))
+    if day is not None:
+        rows = rows.filter(pl.col("now").dt.date().cast(pl.String) == day)
 
     pred = predict(method, stops, rows, split, models, local, workers).select(QCOLS)
     parts = []
@@ -182,13 +188,15 @@ def score_method(
         )
         parts.append(part.with_columns(method=pl.lit(method), model=pl.lit(m)))
     scored = pl.concat(parts)
-    out = paths.scores(split, subset_name(limit), method)
+    out = paths.scores(split, subset_name(limit, day), method)
     out.parent.mkdir(parents=True, exist_ok=True)
     scored.write_parquet(out)
     print(f"wrote {out}")
 
 
-def subset_name(limit: int | None) -> str:
+def subset_name(limit: int | None, day: str | None = None) -> str:
+    if day is not None:
+        return f"requests_{day}"
     return "requests" if limit is None else f"requests_{limit}"
 
 
@@ -282,6 +290,9 @@ def main() -> None:
     parser.add_argument("method", choices=[*METHODS, "report"])
     parser.add_argument("--limit", type=int, help="score only the first N requests")
     parser.add_argument(
+        "--day", help="score only the requests of this day (YYYY-MM-DD)"
+    )
+    parser.add_argument(
         "--local", action="store_true", help="run TabPFN here instead of the API"
     )
     parser.add_argument(
@@ -298,7 +309,13 @@ def main() -> None:
         report(args.split, args.subset, args.methods, args.reference)
     else:
         score_method(
-            args.split, args.method, args.limit, args.models, args.local, args.workers
+            args.split,
+            args.method,
+            args.limit,
+            args.day,
+            args.models,
+            args.local,
+            args.workers,
         )
 
 
