@@ -32,7 +32,9 @@ def train_group() -> pl.Expr:
 
 
 def week_runs(stops: pl.LazyFrame, split: str) -> pl.DataFrame:
-    """One row per run of the week: its day, group and number of stop rows."""
+    """
+    One row per run of the week: its day, group and number of stop rows.
+    """
     return (
         stops.filter(pl.col("split") == split)
         .group_by("run_id")
@@ -56,7 +58,9 @@ def sample_runs(
 def group_weights(
     stops: pl.LazyFrame, split: str, sample: pl.DataFrame
 ) -> pl.DataFrame:
-    """Weight per sampled row so that each group counts with its share of all week rows."""
+    """
+    Weight per sampled row so that each group counts with its share of all week rows.
+    """
     week = week_runs(stops, split).group_by("group").agg(pl.col("rows").sum())
     drawn = sample.group_by("group").agg(pl.col("rows").sum().alias("drawn"))
     return week.join(drawn, on="group").select(
@@ -66,7 +70,9 @@ def group_weights(
 
 
 def query_rows(stops: pl.LazyFrame, sample: pl.DataFrame) -> pl.DataFrame:
-    """All stop rows of the sampled runs, with their group."""
+    """
+    All stop rows of the sampled runs, with their group.
+    """
     rows = stops.join(sample.select("run_id", "group").lazy(), on="run_id").collect()
     return rows.sort("run_id", "stop_num")
 

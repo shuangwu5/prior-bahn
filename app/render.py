@@ -129,7 +129,9 @@ def _curve(leg: dict, room: float | None, actual: int | None) -> str:
         return (min(max(x, xmin), xmax) - xmin) / (xmax - xmin) * 100
 
     def area(a: float, b: float) -> str:
-        """clip-path polygon of the curve between delays a and b, in %."""
+        """
+        clip-path polygon of the curve between delays a and b, in %.
+        """
         xs = [a, *(x for x, _ in pts if a < x < b), b]
         top = ", ".join(
             f"{sx(x):.1f}% {100 - _at(pts, x) / ymax * 100:.1f}%" for x in xs

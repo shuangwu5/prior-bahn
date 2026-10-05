@@ -42,7 +42,9 @@ LEGS = pl.DataFrame(
 
 
 def legs_with(q50: float, q80: float, q95: float) -> pl.DataFrame:
-    """The legs, with the given arrival delays at B and small ones elsewhere."""
+    """
+    The legs, with the given arrival delays at B and small ones elsewhere.
+    """
     pred = pl.DataFrame(
         {
             "request_id": [1, 1, 1],

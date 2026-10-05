@@ -38,7 +38,9 @@ GENERAL_POOL_ROWS_PER_TYPE = 5000
 def with_minute_of_day(
     lf: pl.LazyFrame | pl.DataFrame,
 ) -> pl.LazyFrame | pl.DataFrame:
-    """Planned minute of the day of the event the row is about (departure, or arrival at the last stop)."""
+    """
+    Planned minute of the day of the event the row is about (departure, or arrival at the last stop).
+    """
     return lf.with_columns(
         pl.coalesce(
             pl.col("dep_hour") * 60 + pl.col("dep_minute"),
@@ -50,7 +52,9 @@ def with_minute_of_day(
 
 
 def last_event_time() -> pl.Expr:
-    """Latest planned or actual (planned + delay) time of the row's arrival and departure."""
+    """
+    Latest planned or actual (planned + delay) time of the row's arrival and departure.
+    """
     return pl.max_horizontal(
         "planned_arr",
         "planned_dep",
@@ -60,7 +64,9 @@ def last_event_time() -> pl.Expr:
 
 
 def actual_time(event: str) -> pl.Expr:
-    """Actual time of the row's arrival ("arr") or departure ("dep"): planned plus delay."""
+    """
+    Actual time of the row's arrival ("arr") or departure ("dep"): planned plus delay.
+    """
     return pl.col(f"planned_{event}") + pl.duration(minutes=pl.col(f"{event}_delay"))
 
 

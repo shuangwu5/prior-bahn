@@ -15,7 +15,9 @@ QCOLS = {q: f"q{round(q * 100)}" for q in QUANTILES}
 
 
 def pinball(q: float) -> pl.Expr:
-    """Pinball (quantile) loss of the column for quantile `q` against the target `y`."""
+    """
+    Pinball (quantile) loss of the column for quantile `q` against the target `y`.
+    """
     diff = pl.col("y") - pl.col(QCOLS[q])
     return pl.max_horizontal(q * diff, (q - 1) * diff)
 

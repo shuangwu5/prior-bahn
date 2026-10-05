@@ -96,7 +96,9 @@ def _per_day(
 def global_quantiles(
     stops: pl.LazyFrame, query: pl.DataFrame, model: str
 ) -> pl.DataFrame:
-    """The same delay quantiles for every row: those of all past rows."""
+    """
+    The same delay quantiles for every row: those of all past rows.
+    """
     return _per_day(stops, query, model, levels=[[]])
 
 

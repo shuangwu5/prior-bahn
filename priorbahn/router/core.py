@@ -1,4 +1,6 @@
-"""Train-only routing on the stops table, replayed against what actually happened."""
+"""
+Train-only routing on the stops table, replayed against what actually happened.
+"""
 
 import bisect
 from dataclasses import dataclass
@@ -45,7 +47,9 @@ class Leg:
 
 
 def actual(planned: str, delay: str) -> pl.Expr:
-    """Actual time from the planned time and the delay in minutes (null if canceled)."""
+    """
+    Actual time from the planned time and the delay in minutes (null if canceled).
+    """
     return pl.col(planned) + pl.duration(minutes=pl.col(delay))
 
 
@@ -182,7 +186,9 @@ def delay(planned: datetime, actual: datetime | None) -> int | None:
 
 
 def replay(tt: Timetable, legs: list[tuple[int, int]]) -> list[Leg]:
-    """Compare the planned journey with what actually happened, transfer by transfer."""
+    """
+    Compare the planned journey with what actually happened, transfer by transfer.
+    """
     C = tt.conns
     out: list[Leg] = []
     prev = None

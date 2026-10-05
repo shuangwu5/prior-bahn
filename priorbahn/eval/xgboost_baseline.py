@@ -38,7 +38,9 @@ EXTRA = last_known.COLUMNS
 def training_rows(
     stops: pl.LazyFrame, day: date, model: str, seed: int = 0
 ) -> pl.DataFrame:
-    """The capped history of `day` with the last known delay at a random "now"."""
+    """
+    The capped history of `day` with the last known delay at a random "now".
+    """
     rows = (
         _history(stops, day, model)
         .filter(
@@ -67,7 +69,9 @@ def _change_target(rows: pl.DataFrame, model: str) -> np.ndarray:
 def xgboost_quantiles(
     stops: pl.LazyFrame, query: pl.DataFrame, model: str
 ) -> pl.DataFrame:
-    """q50, q80, q95 per query row, in query order, null where the event does not exist."""
+    """
+    q50, q80, q95 per query row, in query order, null where the event does not exist.
+    """
     qcols = [f"q{round(q * 100)}" for q in QUANTILES]
     query = last_known.at_cutoff(query, stops, pl.col("now"), model).with_row_index(
         "_row"

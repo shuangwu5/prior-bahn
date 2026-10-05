@@ -59,7 +59,9 @@ def get_timetable(day: date) -> rc.Timetable:
 
 
 def short_label(label: str) -> str:
-    """The line ("S3") if the label has one ("S 38318 (S3)"), else the train ("ECE 8")."""
+    """
+    The line ("S3") if the label has one ("S 38318 (S3)"), else the train ("ECE 8").
+    """
     return label[label.index("(") + 1 : -1] if "(" in label else label
 
 
@@ -171,7 +173,9 @@ def plan(
 def transfer_held(
     arr: datetime, incoming: dict, dep: datetime, outgoing: dict
 ) -> bool | None:
-    """Whether the transfer actually worked, by the same rule as the evaluation."""
+    """
+    Whether the transfer actually worked, by the same rule as the evaluation.
+    """
     df = pl.DataFrame(
         {
             "arr": [arr],

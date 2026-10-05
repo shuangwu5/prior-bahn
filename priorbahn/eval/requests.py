@@ -33,7 +33,9 @@ N_ROUTES = 3  # alternatives per request, as in the app
 
 
 def busy_stations(n: int = N_STATIONS) -> pl.DataFrame:
-    """The `n` stations with the most departures in the context pool, with their counts."""
+    """
+    The `n` stations with the most departures in the context pool, with their counts.
+    """
     return (
         pl.scan_parquet(STOPS)
         .filter(pl.col("split") == "context", pl.col("planned_dep").is_not_null())
@@ -79,7 +81,9 @@ def draw_requests(split: str, n: int, seed: int = 0) -> pl.DataFrame:
 def find_journeys(
     tt: rc.Timetable, src: str, dst: str, depart: datetime, n: int = N_ROUTES
 ) -> list[list[rc.Leg]]:
-    """Up to `n` routes, found by rerunning for later departures (as the app)."""
+    """
+    Up to `n` routes, found by rerunning for later departures (as the app).
+    """
     journeys = []
     for _ in range(n):
         legs = rc.earliest_arrival(tt, src, dst, depart)
@@ -92,7 +96,9 @@ def find_journeys(
 
 
 def legs_frame(journeys: list[list[rc.Leg]], request_id: int) -> list[dict]:
-    """One row per leg of each journey, with the outcome of the transfer before it."""
+    """
+    One row per leg of each journey, with the outcome of the transfer before it.
+    """
     rows = []
     for route, journey in enumerate(journeys):
         for i, leg in enumerate(journey):
@@ -116,7 +122,9 @@ def legs_frame(journeys: list[list[rc.Leg]], request_id: int) -> list[dict]:
 
 
 def route_request(tt: rc.Timetable, req: dict) -> list[dict]:
-    """Legs of up to N_ROUTES routes for one request."""
+    """
+    Legs of up to N_ROUTES routes for one request.
+    """
     journeys = find_journeys(tt, req["src"], req["dst"], req["depart"])
     return legs_frame(journeys, req["request_id"])
 

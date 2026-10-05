@@ -145,7 +145,9 @@ def predict(
     local: bool,
     workers: int,
 ) -> pl.DataFrame:
-    """Predictions of `method` aligned with `rows` (QCOLS columns)."""
+    """
+    Predictions of `method` aligned with `rows` (QCOLS columns).
+    """
     if method in TABPFN:
         cache = tabpfn(stops, rows, split, method, models, local, workers)
         return rows.select(*KEYS, "model").join(
@@ -204,7 +206,9 @@ def subset_name(limit: int | None, day: str | None = None) -> str:
 
 
 def case() -> pl.Expr:
-    """Not seen yet, or seen, by minutes from now to the event."""
+    """
+    Not seen yet, or seen, by minutes from now to the event.
+    """
     ahead = pl.col("minutes_ahead")
     return (
         pl.when(pl.col("seen_delay").is_null())

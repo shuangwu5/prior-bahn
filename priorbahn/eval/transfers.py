@@ -26,7 +26,9 @@ METHODS = ["tabpfn_14d_5k_last_known", "train_station", "carry_forward", "global
 
 
 def with_outcome(transfers: pl.DataFrame, stops: pl.LazyFrame) -> pl.DataFrame:
-    """`transfers` (see risk.transfers) with `held`, from the actual delays."""
+    """
+    `transfers` (see risk.transfers) with `held`, from the actual delays.
+    """
     actual = stops.select(
         "run_id",
         "stop_num",
@@ -70,7 +72,9 @@ def with_outcome(transfers: pl.DataFrame, stops: pl.LazyFrame) -> pl.DataFrame:
 
 
 def scored_transfers(split: str, method: str) -> pl.DataFrame:
-    """Every transfer with a known outcome, with its level by `method`."""
+    """
+    Every transfer with a known outcome, with its level by `method`.
+    """
     stops = pl.scan_parquet(STOPS)
     legs = pl.read_parquet(paths.router_legs(split))
     rows = pl.read_parquet(paths.request_rows(split)).filter(pl.col("model") == "arr")
@@ -87,7 +91,9 @@ def scored_transfers(split: str, method: str) -> pl.DataFrame:
 
 
 def summary(scored: pl.DataFrame) -> pl.DataFrame:
-    """Per method and level: share of transfers and how often they held."""
+    """
+    Per method and level: share of transfers and how often they held.
+    """
     return (
         scored.group_by("method", "level")
         .agg(pl.len().alias("transfers"), pl.col("held").mean().alias("held"))

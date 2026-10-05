@@ -56,7 +56,9 @@ RAW_COLUMNS = [
 
 
 def minutes_between(later: pl.Expr, earlier: pl.Expr) -> pl.Expr:
-    """Whole minutes from `earlier` to `later`. Missing times give null."""
+    """
+    Whole minutes from `earlier` to `later`. Missing times give null.
+    """
     return (later - earlier).dt.total_minutes().cast(pl.Int16)
 
 
@@ -71,7 +73,9 @@ def null_date_errors(minutes: pl.Expr) -> pl.Expr:
 
 
 def load_month(month: str) -> pl.LazyFrame:
-    """Read one raw file, drop rows we never use and add run_id and run_day."""
+    """
+    Read one raw file, drop rows we never use and add run_id and run_day.
+    """
     df = pl.scan_parquet(RAW.format(month=month)).select(RAW_COLUMNS)
 
     # rows without a train type are dropped too (about 37k rows, none has a planned time)

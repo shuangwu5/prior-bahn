@@ -102,7 +102,9 @@ def tabpfn(
 def predict(
     method: str, stops: pl.LazyFrame, rows: pl.DataFrame, split: str
 ) -> dict[str, pl.DataFrame]:
-    """Predictions of `method` for both models, aligned with `rows`."""
+    """
+    Predictions of `method` for both models, aligned with `rows`.
+    """
     if method in TABPFN:
         return tabpfn(stops, rows, split, method)
     fn = {

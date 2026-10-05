@@ -1,4 +1,6 @@
-"""Fit TabPFN on a shared context and predict delay quantiles for the query rows."""
+"""
+Fit TabPFN on a shared context and predict delay quantiles for the query rows.
+"""
 
 import os
 from pathlib import Path
@@ -20,7 +22,9 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 def load_token() -> None:
-    """Read the Prior Labs key from .env. Both packages read it from TABPFN_TOKEN."""
+    """
+    Read the Prior Labs key from .env. Both packages read it from TABPFN_TOKEN.
+    """
     load_dotenv(ROOT / ".env", override=True)
     os.environ["TABPFN_TOKEN"] = os.environ["PRIORLABS_API_KEY"]
 

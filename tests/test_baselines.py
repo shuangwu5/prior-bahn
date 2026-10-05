@@ -14,7 +14,9 @@ DAY = date(2026, 9, 20)
 
 
 def made_up_stops(rows: list[tuple]) -> pl.LazyFrame:
-    """One arrival per row: (run_id, run_day, planned_arr, arr_delay), all at station "S"."""
+    """
+    One arrival per row: (run_id, run_day, planned_arr, arr_delay), all at station "S".
+    """
     df = pl.DataFrame(
         rows,
         schema={

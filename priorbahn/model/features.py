@@ -28,19 +28,25 @@ EVENTS = {
 
 
 def feature_columns(model: str, extra: tuple[str, ...] = ()) -> list[str]:
-    """Feature columns of `model`, plus optional `extra` columns (such as "days_ago")."""
+    """
+    Feature columns of `model`, plus optional `extra` columns (such as "days_ago").
+    """
     return CATEGORICAL + SHARED_NUMERIC + EVENTS[model]["numeric"] + list(extra)
 
 
 def with_days_ago(df: pl.DataFrame, day: date) -> pl.DataFrame:
-    """Days from the row's run day to the request `day` (0 for runs of that day)."""
+    """
+    Days from the row's run day to the request `day` (0 for runs of that day).
+    """
     return df.with_columns(
         (pl.lit(day) - pl.col("run_day").dt.date()).dt.total_days().alias("days_ago")
     )
 
 
 def usable_rows(df: pl.DataFrame, model: str) -> pl.DataFrame:
-    """Rows that can serve as context for `model`: event exists, not canceled, target known."""
+    """
+    Rows that can serve as context for `model`: event exists, not canceled, target known.
+    """
     event = EVENTS[model]
     return df.filter(pl.col(event["target"]).is_not_null() & ~pl.col(event["canceled"]))
 
