@@ -108,10 +108,9 @@ uv run --no-sync python -m priorbahn.data.prep
 uv run --no-sync streamlit run app/app.py
 ```
 
-The app runs TabPFN on your machine (`LOCAL = True` in `app/app.py`). The first
-search downloads the model weights. One search takes about 50 seconds on a Mac. To use the
-Prior Labs API instead, set `LOCAL = False` and put your key in `.env` as
-`PRIORLABS_API_KEY=...`.
+The app runs TabPFN on your machine. The first search downloads the model weights. To use the Prior Labs API instead, put your key in
+`.env` as `PRIORLABS_API_KEY=...` and start the app with
+`uv run --no-sync streamlit run app/app.py -- --backend api`.
 
 In the app, pick a day between September 15 and 30, two stations and "now". Each
 route shows its planned times with the expected (median) arrival delay, a timeline with a

@@ -8,8 +8,10 @@ routes. A switch on the page reveals what actually happened that day. The cards 
 app/render.py.
 
 Run from the repo root: uv run --no-sync streamlit run app/app.py
+To use the Prior Labs API instead of this machine, add: -- --backend api
 """
 
+import argparse
 import sys
 import time as clock
 from datetime import date, datetime, time, timedelta
@@ -37,8 +39,14 @@ MAX_ROUTES = 10
 # 80% and 95% that the transfer levels use, and costs about the same time as those three.
 QUANTILES = [round(0.05 * i, 2) for i in range(1, 20)]
 MODELS = {"TabPFN 3.5": "v3.5", "TabPFN 3.5 Fast": "v3.5-fast"}
-# run TabPFN on this machine; False uses the Prior Labs API (costs credits)
-LOCAL = True
+parser = argparse.ArgumentParser()
+parser.add_argument(
+    "--backend",
+    choices=["local", "api"],
+    default="local",
+    help="run TabPFN on this machine, or on the Prior Labs API (costs credits)",
+)
+LOCAL = parser.parse_args().backend == "local"
 STOP_COLUMNS = [
     "run_id",
     "stop_num",
