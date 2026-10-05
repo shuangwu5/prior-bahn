@@ -9,7 +9,7 @@ outcomes. It works in the browser alone, so opened stop lists stay open.
 
 from html import escape
 
-from dbdelay.risk import LEVELS
+from dbdelay.risk import CHANGE_MIN, LEVELS
 
 CSS = """
 <style>
@@ -23,7 +23,7 @@ CSS = """
     --l1:#6fd29a; --l2:#b0d977; --l3:#f0c04f; --l4:#f08a6a; --late:#f08a6a; --ontime:#6fd29a; }
 }
 .rr * { box-sizing: border-box; }
-.rr .legend { display:flex; flex-wrap:wrap; gap:16px; font-size:14px; margin: 4px 0 12px; }
+.rr .legend { display:flex; flex-wrap:wrap; gap:8px 14px; font-size:14px; margin: 4px 0 12px; }
 .rr .legend span { display:inline-flex; align-items:center; gap:6px; }
 .rr .dot { display:inline-block; width:12px; height:12px; border-radius:50%; flex:none; background:var(--c); }
 .rr .l1 { --c:var(--l1); } .rr .l2 { --c:var(--l2); } .rr .l3 { --c:var(--l3); } .rr .l4 { --c:var(--l4); }
@@ -72,24 +72,59 @@ CSS = """
 .rr:has(#rr-reveal:checked) .d, .rr:has(#rr-reveal:checked) .held, .rr:has(#rr-reveal:checked) .missed { display:inline; }
 .rr .top { display:flex; flex-wrap:wrap; gap:12px 24px; align-items:center; justify-content:space-between; margin:4px 0 14px; }
 .rr .top .legend { margin:0; }
-.rr .reveal { display:inline-flex; align-items:center; gap:8px; font-weight:600; cursor:pointer; min-height:44px; }
+.rr .reveal { margin-left:auto; display:inline-flex; align-items:center; gap:8px; font-weight:600; cursor:pointer; min-height:44px; }
 .rr .reveal input { width:20px; height:20px; accent-color:var(--train); }
 .rr details.mid { position:relative; }
 .rr details.mid::before { content:""; position:absolute; left:97px; top:0; bottom:0; width:3px; background:var(--rail); }
 .rr details.mid > summary { padding:2px 0 8px 118px; }
-.rr .foot { color:var(--muted); font-size:13px; margin-top:16px; }
+.rr .legend .lead { font-weight:700; gap:4px; position:relative; }
+.rr .info { display:inline-flex; align-items:center; justify-content:center; width:18px; height:18px;
+  border-radius:50%; border:1.5px solid var(--muted); color:var(--muted); font-size:12px; font-weight:700;
+  font-style:normal; cursor:help; }
+.rr .info .tip { display:none; position:absolute; left:0; top:26px; z-index:10; width:min(420px, 80vw);
+  background:var(--card); color:var(--ink); border:1px solid var(--line); border-radius:10px; padding:10px 12px;
+  font-size:13px; font-weight:400; line-height:1.45; box-shadow:0 6px 20px rgba(0,0,0,.15); }
+.rr .info:hover .tip, .rr .info:focus .tip { display:block; }
+.rr .tip .lv { display:block; margin-top:6px; }
+.rr .tip .lv .dot { width:10px; height:10px; margin-right:6px; }
 </style>
 """
 
 
 def _top() -> str:
-    """The legend of the transfer levels and the switch for what actually happened."""
+    """The legend of the transfer levels and the switch for what actually happened.
+    Hovering or tapping the info icon explains the levels."""
+    # TabPFN's own chance from the quantile the transfer still works at, not the
+    # measured share of LEVELS
+    sure = {
+        1: "95% sure or more",
+        2: "80 to 95% sure",
+        3: "50 to 80% sure",
+        4: "less than 50% sure",
+    }
+    levels = "".join(
+        f'<span class="lv"><i class="dot l{k}"></i><b>{label.capitalize()}</b>: '
+        f"{sure[k]}</span>"
+        for k, (label, _) in LEVELS.items()
+    )
+    tip = (
+        "<b>How sure TabPFN is that you catch your next train</b>"
+        f"{levels}"
+        f'<span class="lv">We assume you need at least {CHANGE_MIN} minutes to change '
+        "trains, and that the next train leaves on time.</span>"
+        '<span class="lv">The big dot on a card shows its weakest transfer.</span>'
+    )
+    lead = (
+        '<span class="lead">Transfer reliability'
+        f'<i class="info" tabindex="0" aria-label="About transfer reliability">i'
+        f'<span class="tip" role="tooltip">{tip}</span></i></span>'
+    )
     items = "".join(
-        f'<span><i class="dot l{k}"></i>{label.capitalize()} · {chance}</span>'
-        for k, (label, chance) in LEVELS.items()
+        f'<span><i class="dot l{k}"></i>{label.capitalize()}</span>'
+        for k, (label, _) in LEVELS.items()
     )
     return (
-        f'<div class="top"><div class="legend">{items}</div>'
+        f'<div class="top"><div class="legend">{lead}{items}</div>'
         '<label class="reveal"><input type="checkbox" id="rr-reveal"> '
         "Show what actually happened</label></div>"
     )
@@ -214,11 +249,4 @@ def card(route: dict) -> str:
 
 def page(routes: list[dict]) -> str:
     cards = "".join(card(r) for r in routes)
-    foot = (
-        '<p class="foot">A transfer\'s color: TabPFN predicts how late the incoming train '
-        "will be. <b>Very likely</b> means you still have 2 minutes to change trains even if "
-        "the train is later than in 95% of predicted cases, <b>likely</b> at 80%, "
-        "<b>uncertain</b> at 50%, <b>unlikely</b> otherwise. The connecting train is "
-        "assumed to leave on time. A card's large dot is its weakest transfer.</p>"
-    )
-    return f'<div class="rr">{CSS}{_top()}{cards}{foot}</div>'
+    return f'<div class="rr">{CSS}{_top()}{cards}</div>'
