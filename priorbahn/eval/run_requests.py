@@ -64,7 +64,7 @@ def tabpfn(
     models: list[str],
     local: bool,
     workers: int,
-):
+) -> pl.DataFrame:
     """
     Predictions for every row of `rows` and each of `models`, with columns KEYS, model
     and QCOLS. `local` runs TabPFN on this machine instead of the Prior Labs API.
@@ -141,7 +141,7 @@ def predict(
     models: list[str],
     local: bool,
     workers: int,
-):
+) -> pl.DataFrame:
     """Predictions of `method` aligned with `rows` (QCOLS columns)."""
     if method in TABPFN:
         cache = tabpfn(stops, rows, split, method, models, local, workers)

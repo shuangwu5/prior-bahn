@@ -8,7 +8,7 @@ before D whose events all happen before D starts, the same rule as the TabPFN co
 null where the model's event does not exist.
 """
 
-from datetime import datetime, time, timedelta
+from datetime import date, datetime, time, timedelta
 
 import polars as pl
 
@@ -27,7 +27,7 @@ def _quantiles(target: str) -> list[pl.Expr]:
     ] + [pl.len().alias("count")]
 
 
-def _history(stops: pl.LazyFrame, day, model: str) -> pl.LazyFrame:
+def _history(stops: pl.LazyFrame, day: date, model: str) -> pl.LazyFrame:
     event = EVENTS[model]
     return stops.filter(
         pl.col("run_day") < pl.lit(day),
@@ -40,7 +40,7 @@ def _history(stops: pl.LazyFrame, day, model: str) -> pl.LazyFrame:
 
 
 def _per_day(
-    stops: pl.LazyFrame, query: pl.DataFrame, model: str, levels
+    stops: pl.LazyFrame, query: pl.DataFrame, model: str, levels: list[list[str]]
 ) -> pl.DataFrame:
     """
     Quantiles for each query row from the first level with enough history.

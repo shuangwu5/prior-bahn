@@ -35,7 +35,7 @@ def made_up_stops(rows: list[tuple]) -> pl.LazyFrame:
     ).lazy()
 
 
-def test_history_leaves_out_events_of_the_query_day():
+def test_history_leaves_out_events_of_the_query_day() -> None:
     day_before = DAY - timedelta(days=1)
     rows = [
         (f"r{i}", day_before, datetime.combine(day_before, time(10, i)), 1)

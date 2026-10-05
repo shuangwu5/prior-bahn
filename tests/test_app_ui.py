@@ -30,7 +30,7 @@ def app_is_running() -> bool:
 pytestmark = pytest.mark.skipif(not app_is_running(), reason=f"no app at {APP_URL}")
 
 
-def test_actual_delays_show_only_when_ticked():
+def test_actual_delays_show_only_when_ticked() -> None:
     from playwright.sync_api import expect, sync_playwright
 
     with sync_playwright() as p:

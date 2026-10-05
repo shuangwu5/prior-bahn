@@ -2,6 +2,7 @@
 HTML for the route cards of the Streamlit app.
 """
 
+from datetime import datetime
 from html import escape
 from itertools import pairwise
 from pathlib import Path
@@ -50,11 +51,11 @@ def _top() -> str:
     )
 
 
-def _time(t) -> str:
+def _time(t: datetime | None) -> str:
     return "" if t is None else f"{t:%H:%M}"
 
 
-def _delay(d, canceled: bool) -> str:
+def _delay(d: int | None, canceled: bool) -> str:
     if canceled:
         return '<span class="d bad">canceled</span>'
     if d is None:
@@ -104,7 +105,7 @@ def _at(pts: list[tuple[float, float]], x: float) -> float:
     return 0.0
 
 
-def _curve(leg: dict, room: float | None, actual) -> str:
+def _curve(leg: dict, room: float | None, actual: int | None) -> str:
     """
     The predicted arrival delay of `leg` as a curve, with the 50%, 80% and 95%
     quantiles marked. Before a transfer, `room` is its time left to change: the curve is
@@ -124,10 +125,10 @@ def _curve(leg: dict, room: float | None, actual) -> str:
     xmin = min(qs[0][1] - 1, (room or 0) - 1, -0.15 * xmax)
     ymax = max(y for _, y in pts) * 1.08
 
-    def sx(x):  # % of the width
+    def sx(x: float) -> float:  # % of the width
         return (min(max(x, xmin), xmax) - xmin) / (xmax - xmin) * 100
 
-    def area(a, b):
+    def area(a: float, b: float) -> str:
         """clip-path polygon of the curve between delays a and b, in %."""
         xs = [a, *(x for x, _ in pts if a < x < b), b]
         top = ", ".join(

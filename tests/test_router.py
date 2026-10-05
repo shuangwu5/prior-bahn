@@ -51,7 +51,7 @@ def timetable(conns: list[dict]) -> rc.Timetable:
     )
 
 
-def test_station_with_several_eva_codes_is_one_stop():
+def test_station_with_several_eva_codes_is_one_stop() -> None:
     # "Hub" stands for a station like Hamburg Hbf, whose main-line and S-Bahn platforms
     # have different EVA codes. The router only sees names, so a change at Hub works
     # whichever platform each train uses, and a detour back to Hub is never needed.
@@ -69,7 +69,7 @@ def test_station_with_several_eva_codes_is_one_stop():
     assert [tt.conns[e]["run_id"] for e, _ in legs] == ["1"]
 
 
-def test_hamburg_to_munich_has_no_detour():
+def test_hamburg_to_munich_has_no_detour() -> None:
     if not RAW.exists():
         pytest.skip(f"{rc.PATH} is not there")
     tt = rc.load_timetable(DAY.date(), str(RAW))

@@ -2,12 +2,17 @@
 
 import os
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import numpy as np
 import polars as pl
 from dotenv import load_dotenv
 
 from priorbahn.model.features import EVENTS, shared_categories, to_frame, usable_rows
+
+if TYPE_CHECKING:
+    import tabpfn
+    import tabpfn_client
 
 VERSION = "v3.5"  # "v3.5-fast" is the faster variant (API only)
 QUANTILES = [0.5, 0.8, 0.95]
@@ -20,7 +25,9 @@ def load_token() -> None:
     os.environ["TABPFN_TOKEN"] = os.environ["PRIORLABS_API_KEY"]
 
 
-def regressor(local: bool = False, version: str = VERSION):
+def regressor(
+    local: bool = False, version: str = VERSION
+) -> "tabpfn.TabPFNRegressor | tabpfn_client.TabPFNRegressor":
     if local:
         from tabpfn import TabPFNRegressor
     else:

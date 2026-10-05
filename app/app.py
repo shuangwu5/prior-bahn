@@ -168,7 +168,9 @@ def plan(
     return out, seconds
 
 
-def transfer_held(arr: datetime, incoming: dict, dep: datetime, outgoing: dict):
+def transfer_held(
+    arr: datetime, incoming: dict, dep: datetime, outgoing: dict
+) -> bool | None:
     """Whether the transfer actually worked, by the same rule as the evaluation."""
     df = pl.DataFrame(
         {

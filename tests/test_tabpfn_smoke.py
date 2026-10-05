@@ -12,6 +12,7 @@ import os
 from pathlib import Path
 
 import numpy as np
+import pandas as pd
 import polars as pl
 import pytest
 from dotenv import load_dotenv
@@ -45,7 +46,7 @@ def load_sample(split: str, n: int) -> pl.DataFrame:
     return df.sample(n, seed=0)
 
 
-def to_X(df: pl.DataFrame, cats: dict):
+def to_X(df: pl.DataFrame, cats: dict) -> pd.DataFrame:
     X = df.select(NUM).to_pandas()
     for c in CAT:
         X[c] = df[c].replace_strict(cats[c], default=-1).to_numpy()
@@ -62,7 +63,7 @@ def token() -> None:
 
 
 @pytest.fixture(scope="module")
-def data():
+def data() -> tuple[pd.DataFrame, np.ndarray, pd.DataFrame, np.ndarray]:
     if not STOPS.exists():
         pytest.skip("run priorbahn/data/prep.py first")
     train, val = load_sample("context", N_TRAIN), load_sample("validation", N_VAL)
@@ -76,7 +77,11 @@ def data():
 
 
 @pytest.mark.parametrize("mode", ["client", "local"])
-def test_regressor_smoke(mode, token, data):
+def test_regressor_smoke(
+    mode: str,
+    token: None,
+    data: tuple[pd.DataFrame, np.ndarray, pd.DataFrame, np.ndarray],
+) -> None:
     if mode == "client":
         from tabpfn_client import TabPFNRegressor
     else:
