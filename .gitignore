@@ -1,9 +1,12 @@
 .venv/
 .worktrees/
+.docs/
 __pycache__/
 .ruff_cache/
 .ipynb_checkpoints/
 .DS_Store
 .env
 .env.*
-/data/
+!env.example
+/data
+
