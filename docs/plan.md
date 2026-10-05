@@ -21,8 +21,8 @@ not running yet (later legs, or trips planned in advance) are predicted from the
 - Routing: a router built from the dataset's own timetable. No external routing API.
 - Scope: trains only. Bus and rail-replacement rows are dropped.
 - What the model predicts (decided October 4, replaces "live state is step two"): the change in delay, like bahnvorhersage's `delay_diff`. One model for all legs (`docs/data-prep-plan.md`, section 10).
-  - Train already running at "now": the input is the delay where we last saw it, and the model predicts how much that changes by the stop we care about. We have no DB forecasts, so this sighting stands in for them. This is the headline case.
-  - Train not started yet (later legs, or trips planned ahead): marked "not seen yet", and the model predicts the delay itself from the timetable and history. Needed in almost every request.
+  - Train already running at "now": the input is its last known delay (the delay at the last stop where we know it before "now"), and the model predicts how much that changes by the stop we care about. We have no DB forecasts, so the last known delay stands in for them. This is the headline case.
+  - Train not started yet (later legs, or trips planned ahead): its last known delay is empty, and the model predicts the delay itself from the timetable and history. Needed in almost every request.
 - Models: TabPFN-3.5 through the Prior Labs API. The key is read from `.env`, which is not committed.
 - Demo: a Streamlit app. An agent wrapper is a stretch goal.
 
@@ -48,14 +48,14 @@ Facts from the September file (14.8M stop events, 5,284 stations):
 3. Delay model
    - For each leg, predict the arrival-delay distribution at the alighting stop and the departure-delay distribution of the connecting train at the transfer station.
    - Two models, two calls per request: one for arrival delay, one for departure delay. Cancellation is left out of the first version.
-   - Seen and not-seen legs share one context, so a request still makes two calls. The context holds rows from earlier days of both kinds: runs with a sighting at a similar horizon, and runs with no sighting. Separate contexts for the two kinds are a variant to test on the validation week.
+   - Legs of started and not-started trains share one context, so a request still makes two calls. Context rows of earlier days get their last known delay by replaying that day at the same clock time as "now" (`docs/data-prep-plan.md`, section 10). Separate contexts for the two kinds are a variant to test on the validation week.
    - Context: one shared context per request, not per leg. Prediction time is set by the context size, not by the number of rows predicted, so one call answers all legs of all candidate routes.
-   - The context is built from the stations and trains on the candidate routes (at most 5 routes), in three parts:
-     1. Same train (done). First the stops the train passed on the request day before "now", latest stop first. These come from the query's own runs and are the strongest signal. Then the same train at the same station on earlier days, most recent day first.
-     2. Other trains at those stations (done). First the rows of the 60 minutes before "now" on the request day, which show a disruption that is going on right now. Then rows of earlier days, on the same weekday, in the 60 minutes before each query row's planned time. Both are split evenly over the train types of the request, like part 3. Rows a type cannot fill go to the other trains at the station (not S-Bahn, when the request has no S-Bahn train).
-     3. A small general sample from all stations, split evenly over the train types of the request (done). A uniform sample would be about half S-Bahn (46% of all rows), whatever the request is about. The stops table itself is not subsampled: the router and the evaluation need all runs.
+   - The context is built from the stations and trains on the candidate routes (at most 5 routes), from the request day before "now" and the 7 days before it (decided October 5), in three parts:
+     1. Same train (done). First the stops the train passed on the request day before "now", latest stop first. These come from the query's own runs and are the strongest signal. Then the whole rides of the same train on the earlier days, most recent day first (planned October 5; before: only at the stations of the query rows).
+     2. Other trains at those stations (done). First the rows of the 60 minutes before "now" on the request day, which show a disruption that is going on right now. Then rows of the earlier days in the 60 minutes before each query row's planned time (planned October 5: on all 7 days; before: only on the same weekday). Both are split evenly over the train types of the request, like part 3. Rows a type cannot fill go to the other trains at the station (not S-Bahn, when the request has no S-Bahn train).
+     3. A general sample from all stations that fills the rest of the context, split evenly over the train types of the request (done). A uniform sample would be about half S-Bahn (46% of all rows), whatever the request is about. The stops table itself is not subsampled: the router and the evaluation need all runs.
    - Rows of the request day (done, `known_at` in `dbdelay/model/context.py`): an event counts only if its actual time is before "now". A planned time before "now" is not enough: a late train may not have left yet. Later events of the same row are set to empty. These rows need the `days_ago` feature (0 for the request day), otherwise TabPFN cannot tell them from older rows.
-   - Starting point: about 2k context rows, split roughly 40% / 40% / 20% across the three groups. Both the size and the split are settings to tune on the validation week.
+   - Size (decided October 5): up to 10k context rows. Parts 1 and 2 take everything they find, part 3 fills the rest. If parts 1 and 2 alone have more than 10k rows, part 1 goes first. The first tests used 2k rows split 40% / 40% / 20%.
    - Measured on a Mac with local weights (10 query rows): about 5 s per call at 1k context rows, 17 s at 3k, 95 s at 10k. API timing is not measured yet.
 4. Route risk
    - Sample the leg distributions to get the probability of each transfer and the arrival distribution.
@@ -100,7 +100,7 @@ Done:
 - shared-context builder, feature lists with optional `days_ago`, TabPFN predict step (`dbdelay/model`), smoke test
 - per-leg evaluation of not-seen legs (`dbdelay/eval/`, results in `data/eval/README.md`): 300 sampled validation runs, baselines `global` and `train_station`, TabPFN variants. Result: `train_station` beats TabPFN overall (arrival pinball 1.19 against 1.28). TabPFN wins only on S-Bahn. These scores use the stops table from before the data-quality fixes.
 
-Not done: the gradient-boosted baseline (written, too slow to run), "the delay stays the same" baseline, parts 1 and 2 of the context with rows of the request day, change-in-delay model (sightings), route risk, delay model in the app.
+Not done: the gradient-boosted baseline (written, too slow to run), "the delay stays the same" baseline, parts 1 and 2 of the context with rows of the request day, change-in-delay model (last known delay), route risk, delay model in the app.
 
 # Schedule
 - October 3: data prep, router. Done.
@@ -112,7 +112,7 @@ Not done: the gradient-boosted baseline (written, too slow to run), "the delay s
 - Weak signal for trains not seen yet: the per-train-per-station median gives 2.7 min absolute error against 3.0 for the global median. The result has to stand on calibrated probabilities, not point accuracy.
 - Strong baseline for seen trains: "the delay stays the same" is hard to beat when the stop is close. The room for TabPFN is at 15 min and more ahead, where the delay changes more (mean change +0.5 min at 16 min, +1.1 at 30 min).
 - The last observed delay is a weaker input than DB's own forecast, which also knows schedule buffers and disruptions.
-- The schedule is tight: sightings, route risk and the app all land on October 5 and 6.
+- The schedule is tight: the change-in-delay model, route risk and the app all land on October 5 and 6.
 - Latency and API cost: several predictions per route.
 - Legs are treated as independent, which is wrong on bad network days. Stated as a limitation.
 - The router only plans on days in the dataset and only transfers within one station.

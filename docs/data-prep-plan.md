@@ -242,62 +242,72 @@ split by `run_day`.
    features in section 6.
 7. Are the arrivals more than 60 min early real or data errors?
 
-## 10. Predicting the change in delay (decided October 4, not built yet)
+## 10. Predicting the change in delay (decided October 4, details October 5, being built)
 
 The person asks at time t ("now"). Some trains on the candidate routes are already running, others
-have not started yet. One model handles both. Our data has no DB forecasts, so the delay where we
-last saw the train stands in for them (measured in `bahnvorhersage-lessons.md`, section 3).
+have not started yet. One model handles both. Our data has no DB forecasts, so the last known delay
+of the train stands in for them (measured in `bahnvorhersage-lessons.md`, section 3).
+
+"Last known delay" means: the delay at the last stop where we know the train's delay before t.
 
 ### What the model predicts
 
-The model predicts how much the delay changes between the last place we saw the train and the stop
-we care about. Example: the train left stop A 5 min late, and we want stop C. If the model predicts
-+2, the train arrives at C about 7 min late.
+The model predicts how much the delay changes between the stop with the last known delay and the
+stop we care about. Example: the train left stop A 5 min late, and we want stop C. If the model
+predicts +2, the train arrives at C about 7 min late.
 
-If we have not seen the train yet (it has not started), there is nothing to change from. The model
-then predicts the delay itself, from the timetable and from how this train usually runs.
+If the train has not started yet, there is nothing to change from. The model then predicts the delay
+itself, from the timetable and from how this train usually runs.
 
 ### Columns added per row
 
 | Column | Meaning |
 |---|---|
-| `seen_delay` | Delay where we last saw the train before t. Empty if not seen yet |
-| `seen_stop_num` | Stop where we last saw it, as a stop index (see the rules below). Empty if not seen yet |
-| `horizon_min` | Scheduled travel time from the last sighting to the target stop. Empty if not seen yet |
-| `stops_ahead` | Number of stops from the last sighting to the target stop, by stop index (0 for a departure seen from its own arrival). Empty if not seen yet |
-| `delay_change` | The target: delay at the target stop minus `seen_delay`, or the delay itself if not seen yet |
+| `last_known_delay` | Delay at the last stop where we know it, before t. Empty if the train has not started |
+| `minutes_since_known` | Planned minutes from that event to the event we predict. Empty if not started |
+| `stops_since_known` | Number of stops from that stop to the stop we predict, by stop index (0 for a departure predicted from the arrival at the same stop). Empty if not started |
+| `delay_change` | The target: delay of the predicted event minus `last_known_delay`, or the delay itself if not started |
 
-"Seen" means an arrival or departure with an actual time before t. A departure can also be predicted
-from the arrival at the same stop (the train has arrived but not left yet). The timetable columns of
-the target stop come from `stops` unchanged.
+An event is known if its actual time (planned time plus delay) is before t. A departure can also be
+predicted from the arrival at the same stop (the train has arrived but not left yet). The timetable
+columns of the predicted stop come from `stops` unchanged.
+
+### Context rows: replay at the same clock time
+
+TabPFN learns from the context rows, so they need the same columns, filled the same way. Each earlier
+day is replayed as if the user had asked at the same clock time. Example: the request is at 14:00. A
+row from 3 days earlier gets the train's last known delay before 14:00 on that day.
+
+- A context row whose event comes after that replayed time looks exactly like a query row.
+- A context row whose event comes before it gets the last known delay before its own event, so a
+  short time ahead.
+- Rows of the request day (the stops the train passed before t, and part 2 of the context) use t
+  itself.
+
+Together with part 1 of the context (whole rides of the same train, see `plan.md`, component 3),
+this gives TabPFN past examples of the same question. Example: the user takes ICE 123 from F to J
+at 14:00. On each of the last 7 days, the rows F to J of ICE 123 carry the delay at E before 14:00.
 
 ### Rules
 
-- `seen_delay` stays an input next to the target: big delays tend to shrink, small ones tend to
-  grow. The delay itself is `seen_delay` plus the predicted change, so route risk and transfers
-  work as before. The target is not clipped.
-- "Not seen yet" is written as empty, never as 0. A delay of exactly 0 is the most common sighting
+- `last_known_delay` stays an input next to the target: big delays tend to shrink, small ones tend
+  to grow. The delay itself is `last_known_delay` plus the predicted change, so route risk and
+  transfers work as before. The target is not clipped.
+- "Not started" is written as empty, never as 0. A delay of exactly 0 is the most common known delay
   (35%) and means "on time a few minutes ago", which is very different from "we know nothing".
-- When the question is asked (2 hours or 1 day before departure) does not matter for a train we have
-  not seen. We know the same thing in both cases, so there is no column for it.
-- The rows are built per request in the context builder, not stored as one big table (all
-  combinations would be hundreds of millions of rows):
-  - rows to predict: the last sighting of each train before t, or empty.
-  - context rows from earlier days: for each run we pick, one sighting with a horizon similar to
-    the rows we predict, plus some rows with no sighting for the trains that have not started.
-- Actual times are scheduled time plus delay, so `stops` needs no new columns. Canceled stops have
-  no actual time and never count as a sighting.
-- Leak rule: a sighting must be an event of the same run with an actual time before t, at an
-  earlier stop than the target. The one exception: to predict a departure, the arrival at the same
-  stop also counts.
-  Context rows come only from the context-pool days, as before.
-- The section 4 date-error rules come first. A wrong `seen_delay` breaks both an input and the
+- When the question is asked (2 hours or 1 day before departure) does not matter for a train that
+  has not started. We know the same thing in both cases, so there is no column for it.
+- The columns are built per request, not stored as one big table (all combinations would be
+  hundreds of millions of rows).
+- Canceled stops have no actual time and never count as known.
+- Leak rule for query rows: the known event must be of the same run, with an actual time before t,
+  at an earlier stop than the predicted one. The one exception: to predict a departure, the
+  arrival at the same stop also counts.
+- The section 4 date-error rules come first. A wrong `last_known_delay` breaks both an input and the
   target.
-- Missing stop numbers (about 4% of runs) do not change `horizon_min`, which comes from times. They
-  do change `seen_stop_num` and `stops_ahead`: with raw stop numbers, `stops_ahead` also counts the
-  stops that have no row, and the same stop of one train can get a different number on another
-  day. So both columns use a stop index instead: the stops of each run numbered 1, 2, 3, ... in
-  order of planned time. `stops_ahead` then counts the stops in our data between the sighting and
-  the target.
+- Missing stop numbers (about 4% of runs) do not change `minutes_since_known`, which comes from
+  times. They would change `stops_since_known`: with raw stop numbers it also counts the stops that
+  have no row. So it uses a stop index instead: the stops of each run numbered 1, 2, 3, ... in order
+  of planned time.
 - To test on the validation week: one shared context for both kinds of rows (the default) against
-  separate contexts for seen and not-seen rows.
+  separate contexts for started and not-started trains.
