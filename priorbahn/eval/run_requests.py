@@ -34,7 +34,7 @@ from priorbahn.model.predict import load_token, predict_delays
 STOPS = "data/processed/stops.parquet"
 MODELS = ["arr", "dep"]
 # TabPFN variants: whether the last known delay is a feature and TabPFN predicts the change
-# from it (docs/data-prep-plan.md, section 10), the context size, and how many days back
+# from it, the context size, and how many days back
 # the same train's rides go (the other context groups use 7 days). All use the context of
 # priorbahn.model.context (known at now) and "days_ago". The cached results of the older
 # variants "tabpfn_now" and "tabpfn_midnight" (2,000 rows, all earlier days) stay in

@@ -1,5 +1,5 @@
 """
-Predict the arrival delays of one request with the chosen setup (docs/plan.md, Decisions).
+Predict the arrival delays of one request with the chosen setup.
 
 The setup is the evaluation variant `tabpfn_14d_5k_last_known`: a context of up to 5,000
 rows known at "now" (7 days back, 14 days for the same train), the timetable features,

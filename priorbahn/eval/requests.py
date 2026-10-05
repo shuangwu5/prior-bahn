@@ -1,5 +1,5 @@
 """
-Sample evaluation requests and route them (docs/plan.md, component 5).
+Sample evaluation requests and route them.
 
 A request is (start, destination, departure time) on one day of the validation or test
 week. Start and destination are drawn from the busiest stations, weighted by their number

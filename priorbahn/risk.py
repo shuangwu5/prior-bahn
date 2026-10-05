@@ -1,5 +1,5 @@
 """
-Route risk from predicted arrival delays (docs/plan.md, component 4).
+Route risk from predicted arrival delays.
 
 Each transfer gets one of four levels. The question is whether the transfer still leaves
 CHANGE_MIN minutes to change trains when the incoming train is as late as its predicted

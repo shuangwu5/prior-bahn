@@ -1,7 +1,5 @@
 """
 Feature lists and the conversion of stop rows into TabPFN input.
-
-The lists follow "Feature lists (decided)" in docs/data-prep-plan.md.
 """
 
 from datetime import date

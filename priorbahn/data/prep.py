@@ -1,7 +1,7 @@
 """
 Build the transformed `stops` table from the raw monthly files.
 
-Follows docs/data-prep-plan.md: schedule-only columns, no lagged history features.
+Schedule-only columns, no lagged history features.
 Run from the repo root: uv run --no-sync python -m priorbahn.data.prep
 """
 
@@ -15,7 +15,7 @@ MONTHS = ["09"]  # TabPFN and the baselines look back at most 14 days
 OUT = Path("data/processed/stops.parquet")
 NON_TRAIN = "^(?:bus|sev|bsv)$"  # matched without regard to case
 # historic, special and one-off trains with no stable history, plus a few malformed
-# type labels, see docs/data-prep-plan.md section 4. UEX is kept: holiday night trains.
+# type labels. UEX is kept: holiday night trains.
 DROP_TYPES = [
     # historic and non-passenger
     "DB", "PRE", "MBB", "P", "SDG", "DPN", "ÖBA", "KTB", "UEF",
@@ -29,7 +29,7 @@ DROP_TYPES = [
 # (real values stay under 900 min, the errors are close to 1440)
 MAX_PLAUSIBLE_MIN = 1200
 
-# split by the day a run starts, see docs/plan.md
+# split by the day a run starts
 FIRST_DAY, LAST_DAY = date(2026, 9, 1), date(2026, 9, 30)
 VALIDATION_START, TEST_START = date(2026, 9, 17), date(2026, 9, 24)
 

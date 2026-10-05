@@ -1,5 +1,5 @@
 """
-The last known delay of a train before "now" (docs/data-prep-plan.md, section 10).
+The last known delay of a train before "now".
 
 For every row and one event ("arr" or "dep"), three columns are added:
 - `last_known_delay`: the delay at the train's last event before the cutoff (empty: the

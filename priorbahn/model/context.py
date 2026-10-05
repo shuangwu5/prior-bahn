@@ -1,5 +1,5 @@
 """
-Build the one shared context for a request (docs/plan.md, component 3).
+Build the one shared context for a request.
 
 The context is made of rows of the stops table that are known at "now", the time the user
 picks (also the earliest departure). It uses the request day before "now" and the
