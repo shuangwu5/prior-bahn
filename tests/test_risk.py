@@ -1,4 +1,4 @@
-"""Checks of the careful transfer rule and the route ranking on made-up legs.
+"""Checks of the transfer levels and the route ranking on made-up legs.
 
 uv run --no-sync pytest tests/test_risk.py
 """
@@ -6,6 +6,7 @@ uv run --no-sync pytest tests/test_risk.py
 from datetime import date, datetime, time
 
 import polars as pl
+import pytest
 
 from dbdelay import risk
 
@@ -19,9 +20,9 @@ def at(hour: int, minute: int = 0) -> datetime:
 # - route 1: one leg, arrives at C 15:05
 LEGS = pl.DataFrame(
     [
-        (1, 0, 0, "r1", "A", at(13), "B", 5, at(14)),
-        (1, 0, 1, "r2", "B", at(14, 10), "C", 9, at(15)),
-        (1, 1, 0, "r3", "A", at(13, 5), "C", 7, at(15, 5)),
+        (1, 0, 0, "r1", "A", 1, at(13), "B", 5, at(14)),
+        (1, 0, 1, "r2", "B", 3, at(14, 10), "C", 9, at(15)),
+        (1, 1, 0, "r3", "A", 1, at(13, 5), "C", 7, at(15, 5)),
     ],
     schema=[
         "request_id",
@@ -29,6 +30,7 @@ LEGS = pl.DataFrame(
         "leg",
         "run_id",
         "from_station",
+        "from_stop_num",
         "dep",
         "to_station",
         "to_stop_num",
@@ -38,29 +40,57 @@ LEGS = pl.DataFrame(
 )
 
 
-def legs_with(q95_at_b: float) -> pl.DataFrame:
+def legs_with(q50: float, q80: float, q95: float) -> pl.DataFrame:
+    """The legs, with the given arrival delays at B and small ones elsewhere."""
     pred = pl.DataFrame(
         {
             "request_id": [1, 1, 1],
             "run_id": ["r1", "r2", "r3"],
             "stop_num": [5, 9, 7],
-            "q50": [1.0, 1.0, 1.0],
-            "q80": [2.0, 2.0, 2.0],
-            "q95": [q95_at_b, 4.0, 4.0],
+            "q50": [float(q50), 1.0, 1.0],
+            "q80": [float(q80), 2.0, 2.0],
+            "q95": [float(q95), 4.0, 4.0],
         }
     )
     return risk.with_arrival_delays(LEGS, pred)
 
 
-def test_transfer_is_safe_with_5_min_left_at_q95():
-    # 14:10 - (14:00 + 5) = 5 min: safe. With q95 = 6 only 4 min are left: at risk.
-    assert risk.transfers(legs_with(5.0))["safe"].to_list() == [True]
-    assert risk.transfers(legs_with(6.0))["safe"].to_list() == [False]
+@pytest.mark.parametrize(
+    ("q50", "q80", "q95", "level"),
+    [
+        # 10 min planned, 2 to change trains: 8 min of room
+        (1, 4, 8, 1),
+        (1, 4, 9, 2),
+        (1, 9, 12, 3),
+        (9, 12, 15, 4),
+    ],
+)
+def test_transfer_level_depends_on_the_room_at_each_quantile(q50, q80, q95, level):
+    assert risk.transfers(legs_with(q50, q80, q95))["level"].to_list() == [level]
 
 
-def test_routes_rank_transfers_at_risk_last():
-    # route 0 arrives earlier at q80 (15:02 against 15:07), but its transfer is at risk
-    ranked = risk.routes(legs_with(6.0))
-    assert ranked.select("route", "at_risk", "rank").rows() == [(1, 0, 1), (0, 1, 2)]
-    ranked = risk.routes(legs_with(5.0))
-    assert ranked.select("route", "at_risk", "rank").rows() == [(0, 0, 1), (1, 0, 2)]
+def test_routes_rank_by_the_weakest_transfer():
+    # route 0 arrives earlier at q80 (15:02 against 15:07), so it wins only while its
+    # transfer is very likely; a direct route counts as level 1
+    ranked = risk.routes(legs_with(9, 12, 15))
+    assert ranked.select("route", "weakest", "rank").rows() == [(1, 1, 1), (0, 4, 2)]
+    ranked = risk.routes(legs_with(1, 4, 8))
+    assert ranked.select("route", "weakest", "rank").rows() == [(0, 1, 1), (1, 1, 2)]
+
+
+def test_held_needs_the_change_time_and_no_cancellation():
+    df = pl.DataFrame(
+        {
+            "arr": [at(14)] * 4,
+            "arr_delay": [7, 9, 0, None],
+            "arr_canceled": [False, False, True, False],
+            "dep": [at(14, 10)] * 4,
+            "dep_delay": [0, 0, 0, 0],
+            "dep_canceled": [False] * 4,
+        }
+    )
+    out = df.select(risk.held(*(pl.col(c) for c in df.columns)).alias("held"))[
+        "held"
+    ].to_list()
+    # 3 min left, 1 min left, canceled, unknown delay
+    assert out == [True, False, False, None]

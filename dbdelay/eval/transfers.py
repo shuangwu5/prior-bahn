@@ -1,13 +1,12 @@
-"""Check the "safe" transfers of dbdelay.risk against what actually happened.
+"""Check the transfer levels of dbdelay.risk against what actually happened.
 
 Uses the router requests of one week and the arrival predictions of each method (TabPFN
-from its cache, see dbdelay.eval.run_requests; the baselines are computed). The actual
-outcome comes from the router: "held" if the connecting train left after the incoming
-train arrived, "MISSED" if not (or if one of them was canceled). Transfers with an
-unknown outcome are left out.
+from its cache, see dbdelay.eval.run_requests; the baselines are computed). A transfer
+held if the connecting train left at least risk.CHANGE_MIN minutes after the incoming
+train arrived (a cancellation is a miss). Transfers with an unknown delay are left out.
 
-A good method marks most transfers safe, and almost all of its safe transfers held (the
-rule aims at about 95%, since it uses the q95 delay).
+A good method puts many transfers in level 1, and the held rate of each level falls in
+its range (risk.LEVELS).
 
 Run from the repo root:
 uv run --no-sync python -m dbdelay.eval.transfers validation [--methods ...]
@@ -25,8 +24,52 @@ STOPS = "data/processed/stops.parquet"
 METHODS = ["tabpfn_14d_5k_last_known", "train_station", "carry_forward", "global"]
 
 
+def with_outcome(transfers: pl.DataFrame, stops: pl.LazyFrame) -> pl.DataFrame:
+    """`transfers` (see risk.transfers) with `held`, from the actual delays."""
+    actual = stops.select(
+        "run_id",
+        "stop_num",
+        "arr_delay",
+        "dep_delay",
+        "arr_canceled",
+        "dep_canceled",
+    ).collect()
+    return (
+        transfers.join(
+            actual.select(
+                "run_id",
+                pl.col("stop_num").alias("to_stop_num"),
+                "arr_delay",
+                "arr_canceled",
+            ),
+            on=["run_id", "to_stop_num"],
+            how="left",
+        )
+        .join(
+            actual.select(
+                pl.col("run_id").alias("next_run_id"),
+                pl.col("stop_num").alias("next_stop_num"),
+                "dep_delay",
+                "dep_canceled",
+            ),
+            on=["next_run_id", "next_stop_num"],
+            how="left",
+        )
+        .with_columns(
+            held=risk.held(
+                pl.col("arr"),
+                pl.col("arr_delay"),
+                pl.col("arr_canceled"),
+                pl.col("next_dep"),
+                pl.col("dep_delay"),
+                pl.col("dep_canceled"),
+            )
+        )
+    )
+
+
 def scored_transfers(split: str, method: str) -> pl.DataFrame:
-    """Every transfer with a known outcome, marked safe or at risk by `method`."""
+    """Every transfer with a known outcome, with its level by `method`."""
     stops = pl.scan_parquet(STOPS)
     legs = pl.read_parquet(paths.router_legs(split))
     rows = pl.read_parquet(paths.request_rows(split)).filter(pl.col("model") == "arr")
@@ -34,35 +77,23 @@ def scored_transfers(split: str, method: str) -> pl.DataFrame:
     pred = rows.select("request_id", "run_id", "stop_num").hstack(
         pred.select("q50", "q80", "q95")
     )
+    transfers = risk.transfers(risk.with_arrival_delays(legs, pred))
     return (
-        risk.transfers(risk.with_arrival_delays(legs, pred))
-        .join(
-            legs.select(
-                *risk.ROUTE,
-                (pl.col("leg") - 1).alias("leg"),
-                pl.col("transfer_status").alias("outcome"),
-            ),
-            on=[*risk.ROUTE, "leg"],
-        )
-        .filter(pl.col("outcome").is_in(["held", "MISSED"]))
-        .with_columns(method=pl.lit(method), held=pl.col("outcome") == "held")
+        with_outcome(transfers, stops)
+        .filter(pl.col("held").is_not_null())
+        .with_columns(method=pl.lit(method))
     )
 
 
 def summary(scored: pl.DataFrame) -> pl.DataFrame:
-    """Per method: transfers, share marked safe, how often safe and at-risk transfers
-    held."""
+    """Per method and level: share of transfers and how often they held."""
     return (
-        scored.group_by("method")
-        .agg(
-            pl.len().alias("transfers"),
-            pl.col("held").mean().alias("held_overall"),
-            pl.col("safe").mean().alias("share_safe"),
-            pl.col("held").filter(pl.col("safe")).mean().alias("held_if_safe"),
-            pl.col("held").filter(~pl.col("safe")).mean().alias("held_if_at_risk"),
-            pl.col("safe").is_null().sum().alias("no_prediction"),
+        scored.group_by("method", "level")
+        .agg(pl.len().alias("transfers"), pl.col("held").mean().alias("held"))
+        .with_columns(
+            share=pl.col("transfers") / pl.col("transfers").sum().over("method")
         )
-        .sort("method")
+        .sort("method", "level")
     )
 
 
@@ -73,7 +104,10 @@ def main() -> None:
     args = parser.parse_args()
     scored = pl.concat(scored_transfers(args.split, m) for m in args.methods)
     pl.Config.set_tbl_cols(-1)
-    pl.Config.set_tbl_width_chars(200)
+    pl.Config.set_tbl_rows(-1)
+    print(
+        f"{args.split}: {scored.filter(pl.col('method') == args.methods[0]).height} transfers"
+    )
     print(summary(scored))
 
 
