@@ -32,6 +32,9 @@ DATA_DAYS = (date(2026, 9, 15), date(2026, 9, 30))  # the context needs 14 earli
 # more routes cost little: TabPFN's time depends on the context size, not on the number
 # of stops predicted. The evaluation used rq.N_ROUTES (3).
 MAX_ROUTES = 10
+# 5% to 95% in steps of 5%, for the delay curve at each transfer. It includes the 50%,
+# 80% and 95% that the transfer levels use, and costs about the same time as those three.
+QUANTILES = [round(0.05 * i, 2) for i in range(1, 20)]
 MODELS = {"TabPFN 3.5": "v3.5", "TabPFN 3.5 Fast": "v3.5-fast"}
 # run TabPFN on this machine; False uses the Prior Labs API (costs credits)
 LOCAL = True
@@ -80,6 +83,7 @@ def plan(
         now,
         local=LOCAL,
         version=version,
+        quantiles=QUANTILES,
     ).with_columns(request_id=pl.lit(0, pl.Int64))
     seconds = clock.perf_counter() - started
     print(
@@ -96,7 +100,8 @@ def plan(
         .select(STOP_COLUMNS)
         .collect()
     )
-    known = pred.select("run_id", "stop_num", "last_known_delay")
+    q_cols = [f"q{round(q * 100)}" for q in QUANTILES]
+    known = pred.select("run_id", "stop_num", "last_known_delay", *q_cols)
     out = []
     for r in summary.iter_rows(named=True):
         journey = journeys[r["route"]]
@@ -109,9 +114,10 @@ def plan(
             row = legs.filter(pl.col("route") == r["route"], pl.col("leg") == i).row(
                 0, named=True
             )
-            last_known = known.filter(
+            at_end = known.filter(
                 pl.col("run_id") == leg.run_id, pl.col("stop_num") == leg.to_stop_num
-            )["last_known_delay"]
+            )
+            end = at_end.row(0, named=True) if len(at_end) else {}
             route_legs.append(
                 {
                     "label": leg.label,
@@ -121,7 +127,13 @@ def plan(
                     "stops": leg_stops.to_dicts(),
                     "q50": row["q50"],
                     "q80": row["q80"],
-                    "last_known_delay": last_known[0] if len(last_known) else None,
+                    "last_known_delay": end.get("last_known_delay"),
+                    # (level, minutes) for the delay curve, empty without a prediction
+                    "quantiles": [
+                        (q, end[c])
+                        for q, c in zip(QUANTILES, q_cols)
+                        if end.get(c) is not None
+                    ],
                     "transfer_after": None,
                 }
             )
@@ -131,6 +143,7 @@ def plan(
             route_legs[t["leg"]]["transfer_after"] = {
                 "level": t["level"],
                 "planned_min": int((t["next_dep"] - t["arr"]).total_seconds() // 60),
+                "room_min": t["room_min"],
                 "held": transfer_held(t["arr"], incoming, t["next_dep"], outgoing),
             }
         out.append(

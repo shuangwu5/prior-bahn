@@ -98,9 +98,12 @@ Prior Labs API instead, set `LOCAL = False` and put your key in `.env` as
 `PRIORLABS_API_KEY=...`.
 
 In the app, pick a day between September 15 and 30, two stations and "now". Each
-route shows the arrival with 80% and 95% certainty, a timeline with a colored dot per
-transfer, and the stops with their planned times. "Show what actually happened" reveals the
-real delays and whether each transfer held.
+route shows its planned times with the expected (median) arrival delay, a timeline with a
+colored dot per transfer, and the stops with their planned times. In the stop list, a curve
+shows the predicted arrival delay at each transfer and at the destination, with the median,
+80% and 95% marked. Before a transfer it is red where the train is too late to change.
+"Show what actually happened" reveals the real delays, marks them on the curves, and shows
+whether each transfer held.
 
 ### Evaluation
 
