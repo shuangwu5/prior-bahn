@@ -6,6 +6,10 @@ moment you ask, and ranks the routes by when they get you there.
 
 Built for the Prior Labs TabPFN-3.5 Hackathon, on Deutsche Bahn data from September 2026.
 
+> **Disclaimer.** This repository was written largely with AI assistance. It was made only for
+> a hackathon, to show a possible use case of TabPFN. The code has not been reviewed in depth.
+> Do not rely on it to plan real trips.
+
 ## The question
 
 "My train is 8 minutes late now. Will I make my connection, or should I take another route?"
@@ -161,9 +165,17 @@ when the app is running at `APP_URL` (default `http://localhost:8502`).
   them. The held rates above already include this.
 - A missed transfer is not turned into a later arrival. Routes with weak transfers show
   their arrival "if all transfers work".
-- The router only offers trains planned at or after "now", so it misses a late train you
-  could still catch. It only transfers within one station.
+- The router is this project's own, built from the dataset's timetable. It does not use DB's
+  public API, so its routes differ from DB Navigator and can include routes that are not the
+  best ones.
 - The data covers one month (September 2026), and the test week is one week.
+
+## Related work
+
+[Bahn-Vorhersage](https://bahnvorhersage.de) ([source code](https://gitlab.com/bahnvorhersage/bahnvorhersage))
+has worked on predicting train delays and transfers for years. It uses XGBoost with a different dataset with more
+features than this project, for example the coordinates of each station. If you are interested
+in this topic, have a look at it too.
 
 ## Data
 
