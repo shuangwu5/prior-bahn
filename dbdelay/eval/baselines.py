@@ -105,3 +105,19 @@ def train_station_quantiles(
     return _per_day(
         stops, query, model, levels=[["train_key", "station"], ["station", hour], []]
     )
+
+
+def carry_forward(stops: pl.LazyFrame, query: pl.DataFrame, model: str) -> pl.DataFrame:
+    """ "The delay stays the same": the median is the delay where the train was last seen
+    before now (`seen_delay`, see `dbdelay.eval.requests.request_rows`). The upper
+    quantiles add the usual spread of `train_station_quantiles` (its q80 and q95 minus its
+    q50). A train not seen yet gets the `train_station_quantiles` values."""
+    usual = train_station_quantiles(stops, query, model)
+    seen = query["seen_delay"].cast(pl.Float64)
+    return usual.select(
+        pl.when(seen.is_not_null() & pl.col("q50").is_not_null())
+        .then(seen + pl.col(c) - pl.col("q50"))
+        .otherwise(pl.col(c))
+        .alias(c)
+        for c in ("q50", "q80", "q95")
+    )

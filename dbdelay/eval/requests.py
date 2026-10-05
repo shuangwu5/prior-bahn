@@ -16,6 +16,8 @@ import numpy as np
 import polars as pl
 
 from dbdelay.eval import paths
+from dbdelay.eval.runs import train_group
+from dbdelay.model.context import actual_time
 from dbdelay.router import core as rc
 
 STOPS = "data/processed/stops.parquet"
@@ -113,23 +115,77 @@ def build(split: str, n: int = N_REQUESTS, seed: int = 0) -> tuple[pl.DataFrame,
     return requests, pl.DataFrame(rows)
 
 
-def query_rows(stops: pl.LazyFrame, legs: pl.DataFrame) -> pl.DataFrame:
-    """Stop rows the models predict for each request: the boarding stop of every leg
-    (departure model) and the alighting stop (arrival model). A stop shared by several
-    routes of one request appears once.
+def request_rows(
+    stops: pl.LazyFrame, requests: pl.DataFrame, legs: pl.DataFrame
+) -> pl.DataFrame:
+    """The stop events scored for each request, one row per request, stop and event.
+
+    Per leg, two events: the departure at the boarding stop (`model` "dep") and the
+    arrival at the alighting stop ("arr"). An event shared by several routes of one
+    request appears once. "Now" is the request's departure time. Added columns:
+    - `seen_delay`: the delay of the run's last event before now (null: not started yet)
+    - `minutes_ahead`: planned time of the scored event minus now
     """
     keys = pl.concat(
         [
             legs.select(
-                "request_id", "run_id", pl.col("from_stop_num").alias("stop_num")
+                "request_id",
+                "run_id",
+                pl.col("from_stop_num").alias("stop_num"),
+                pl.lit("dep").alias("model"),
             ),
             legs.select(
-                "request_id", "run_id", pl.col("to_stop_num").alias("stop_num")
+                "request_id",
+                "run_id",
+                pl.col("to_stop_num").alias("stop_num"),
+                pl.lit("arr").alias("model"),
             ),
         ]
     ).unique()
-    rows = stops.join(keys.lazy(), on=["run_id", "stop_num"]).collect()
-    return rows.sort("request_id", "run_id", "stop_num")
+    now = requests.select("request_id", pl.col("depart").alias("now"))
+    runs = stops.filter(pl.col("run_id").is_in(keys["run_id"].unique().implode()))
+    rows = (
+        keys.join(now, on="request_id")
+        .join(runs.collect(), on=["run_id", "stop_num"])
+        .with_columns(
+            minutes_ahead=(
+                pl.when(pl.col("model") == "dep")
+                .then(pl.col("planned_dep"))
+                .otherwise(pl.col("planned_arr"))
+                - pl.col("now")
+            ).dt.total_minutes()
+        )
+    )
+    return (
+        rows.join(last_seen(runs, rows), on=["request_id", "run_id"], how="left")
+        .with_columns(train_group(), weight=pl.lit(1.0))
+        .sort("request_id", "run_id", "stop_num", "model")
+    )
+
+
+def last_seen(runs: pl.LazyFrame, rows: pl.DataFrame) -> pl.DataFrame:
+    """Delay of each request's runs at their last event before now (same leak rule as the
+    context: the actual time must be before now)."""
+    pairs = rows.select("request_id", "run_id", "now").unique()
+    events = runs.collect().join(pairs, on="run_id")
+    return (
+        pl.concat(
+            [
+                events.select(
+                    "request_id",
+                    "run_id",
+                    "now",
+                    actual_time(e).alias("time"),
+                    pl.col(f"{e}_delay").alias("seen_delay"),
+                )
+                for e in ("arr", "dep")
+            ]
+        )
+        .filter(pl.col("time") < pl.col("now"))
+        .sort("time")
+        .group_by("request_id", "run_id")
+        .agg(pl.last("seen_delay"))
+    )
 
 
 def main() -> None:
@@ -138,12 +194,16 @@ def main() -> None:
     paths.router_requests(split).parent.mkdir(parents=True, exist_ok=True)
     requests.write_parquet(paths.router_requests(split))
     legs.write_parquet(paths.router_legs(split))
+    rows = request_rows(pl.scan_parquet(STOPS), requests, legs)
+    rows.write_parquet(paths.request_rows(split))
 
     routed = legs["request_id"].n_unique()
     routes = legs.select("request_id", "route").n_unique()
     print(f"{split}: {len(requests)} requests, {routed} routed, {routes} routes")
     print(f"{len(legs)} legs, {legs['run_id'].n_unique()} runs")
     print(legs.group_by("request_id", "route").len().get_column("len").describe())
+    seen = rows["seen_delay"].is_not_null().sum()
+    print(f"{len(rows)} scored events, {seen} on a train already running at now")
 
 
 if __name__ == "__main__":

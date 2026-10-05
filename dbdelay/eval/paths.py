@@ -18,6 +18,17 @@ def router_legs(split: str) -> Path:
     return EVAL / split / "router_legs.parquet"
 
 
+def request_rows(split: str) -> Path:
+    """The stop events scored per router request, with "now" and the last seen delay."""
+    return EVAL / split / "request_rows.parquet"
+
+
+def request_cache(split: str, variant: str) -> Path:
+    """TabPFN predictions of one variant for the router requests, one row per request
+    and stop."""
+    return EVAL / split / "tabpfn_cache" / f"requests_{variant}.parquet"
+
+
 def tabpfn_cache(split: str, variant: str) -> Path:
     """TabPFN predictions of one variant, one row per stop of every run predicted so far."""
     return EVAL / split / "tabpfn_cache" / f"{variant}.parquet"

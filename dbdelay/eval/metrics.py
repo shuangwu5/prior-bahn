@@ -19,8 +19,13 @@ def pinball(q: float) -> pl.Expr:
     return pl.max_horizontal(q * diff, (q - 1) * diff)
 
 
-def scored_rows(rows: pl.DataFrame, pred: pl.DataFrame, model: str) -> pl.DataFrame:
-    """Query rows next to their predictions, kept only where the target is known."""
+def scored_rows(
+    rows: pl.DataFrame, pred: pl.DataFrame, model: str, extra: tuple[str, ...] = ()
+) -> pl.DataFrame:
+    """Query rows next to their predictions, kept only where the target is known.
+
+    `extra` names more columns of `rows` to keep, for breakdowns.
+    """
     return (
         pl.concat(
             [
@@ -33,6 +38,7 @@ def scored_rows(rows: pl.DataFrame, pred: pl.DataFrame, model: str) -> pl.DataFr
                     "weight",
                     "dep_hour",
                     "arr_hour",
+                    *extra,
                 ),
                 pred,
             ],
