@@ -7,11 +7,14 @@ Deliverable: a runnable repo, plus an optional demo video.
 The user picks a start station, a destination and one time, "now" (decided October 4). "Now" is
 also the earliest departure: all candidate routes leave at or after it. Only what happened before
 "now" may be used.
-We return several train-only routes. For each route we show:
-- the probability that every connection holds
-- the arrival-time distribution at the destination (for example "80% by 14:32, 95% by 15:40")
+We return up to 10 train-only routes. For each route we show:
+- how likely each transfer works, as one of four levels (very likely, likely, uncertain,
+  unlikely)
+- the arrival at the destination reached with 80% and 95% certainty (for example "by 14:53
+  (80%), by 14:56 (95%)")
 
-Routes are ranked by reliable arrival, not by planned arrival.
+Routes are ranked by the arrival reached with 80% certainty, then by fewer transfers (decided
+October 5).
 
 Headline question: "My train is 8 min late now. Will I make my connection, or should I take
 another route?" Trains already running at "now" are predicted from their observed delay. Trains
@@ -23,12 +26,12 @@ not running yet (later legs, or trips planned in advance) are predicted from the
 - What the model predicts (decided October 4, replaces "live state is step two"): the change in delay, like bahnvorhersage's `delay_diff`. One model for all legs (`docs/data-prep-plan.md`, section 10).
   - Train already running at "now": the input is its last known delay (the delay at the last stop where we know it before "now"), and the model predicts how much that changes by the stop we care about. We have no DB forecasts, so the last known delay stands in for them. This is the headline case.
   - Train not started yet (later legs, or trips planned ahead): its last known delay is empty, and the model predicts the delay itself from the timetable and history. Needed in almost every request.
-- Models: TabPFN-3.5 through the Prior Labs API. The key is read from `.env`, which is not committed.
+- Models: TabPFN-3.5. The evaluation used the Prior Labs API (key in `.env`, not committed). The app runs TabPFN on this machine by default (`LOCAL` in `app/streamlit_app.py`, decided October 5 to save API credits), with TabPFN 3.5 or 3.5 Fast to choose in the form.
 - Model setup (decided October 5): `tabpfn_14d_5k_last_known` for all legs, whether the train is running or not. Context of 5,000 rows: 7 days back, 14 days for the same train. Features: timetable, `days_ago` and the last known delay. Development and evaluation focus on arrivals: arrival and departure delays at one stop are within 1 min of each other at 93% of stops.
 - Demo: a Streamlit app. An agent wrapper is a stretch goal.
 
 # Data
-Source: `monthly_processed_data/` from https://huggingface.co/datasets/piebro/deutsche-bahn-data (CC BY 4.0). We use August and September 2026.
+Source: `monthly_processed_data/` from https://huggingface.co/datasets/piebro/deutsche-bahn-data (CC BY 4.0). We use September 2026 only (decided October 5): TabPFN and the baselines look back at most 14 days, so the earliest validation day needs September 3.
 
 Facts from the September file (14.8M stop events, 5,284 stations):
 - `train_line_ride_id` repeats across days. The per-day run key is `id` without its last part (`<ride id>-<run start YYMMDDHHMM>-<stop number>`).
@@ -56,14 +59,16 @@ Facts from the September file (14.8M stop events, 5,284 stations):
      2. Other trains at those stations (done). First the rows of the 60 minutes before "now" on the request day, which show a disruption that is going on right now. Then rows of the earlier days in the 60 minutes before each query row's planned time (planned October 5: on all 7 days; before: only on the same weekday). Both are split evenly over the train types of the request, like part 3. Rows a type cannot fill go to the other trains at the station (not S-Bahn, when the request has no S-Bahn train).
      3. A general sample from all stations that fills the rest of the context, split evenly over the train types of the request (done). A uniform sample would be about half S-Bahn (46% of all rows), whatever the request is about. The stops table itself is not subsampled: the router and the evaluation need all runs.
    - Rows of the request day (done, `known_at` in `dbdelay/model/context.py`): an event counts only if its actual time is before "now". A planned time before "now" is not enough: a late train may not have left yet. Later events of the same row are set to empty. These rows need the `days_ago` feature (0 for the request day), otherwise TabPFN cannot tell them from older rows.
-   - Size (decided October 5): up to 10k context rows. Parts 1 and 2 take everything they find, part 3 fills the rest. If parts 1 and 2 alone have more than 10k rows, part 1 goes first. The first tests used 2k rows split 40% / 40% / 20%.
+   - Size (decided October 5): up to 5k context rows, with 14 days for the same train (`dbdelay/model/request.py`). Parts 1 and 2 take everything they find, part 3 fills the rest. If parts 1 and 2 alone have more rows than that, part 1 goes first. 10k rows with 7 days was tested and was worse and slower. The first tests used 2k rows split 40% / 40% / 20%.
    - Measured on a Mac with local weights (10 query rows): about 5 s per call at 1k context rows, 17 s at 3k, 95 s at 10k. API timing is not measured yet.
 4. Route risk (done October 5, `dbdelay/risk.py`)
-   - Careful rule: a transfer is "safe" if it still leaves 5 min when the incoming train arrives at its q95 delay and the connecting train leaves on time (only 0.14% of departures are early). Otherwise it is "at risk". Only the arrival model is needed.
-   - Routes are ranked by their number of transfers at risk, then by the arrival reached with 80% certainty.
-   - TabPFN's q80 and q95 are a bit too low (74% and 91% of arrivals under them). They are not corrected: the careful rule still holds, 99.1% of TabPFN's safe validation transfers held.
+   - Four levels per transfer: does it still leave 2 min to change trains when the incoming train is as late as its predicted q95 (very likely), q80 (likely) or q50 (uncertain)? Otherwise unlikely. The connecting train is taken as on time (only 0.14% of departures are early). Only the arrival model is needed.
+   - A transfer held if the connecting train actually left at least 2 min after the incoming train arrived (a cancellation is a miss). With TabPFN, the four levels held 91% / 80% / 69% / 38% of the time in the validation week and 93% / 84% / 62% / 41% in the test week. TabPFN puts 43 to 45% of transfers into "very likely", the baselines (14 days of history) 38 to 39%.
+   - Routes are ranked by the arrival reached with 80% certainty, then by fewer transfers. The levels are shown, but do not change the order.
+   - TabPFN's q80 and q95 are a bit too low (74% and 91% of arrivals under them). They are not corrected; the measured held rates above already include this.
+   - Earlier version (replaced): a yes/no "safe" rule with 5 min at q95. It was too strict: two thirds of transfers were "at risk", and 73% of those still held.
    - Not used (earlier proposal): compute a single transfer analytically from the two distributions (assuming independence), sum over all a of P(arr = a) * P(dep >= a - buffer), with buffer = planned gap - minimum transfer time. If trains never depart early, this is the same as P(arr <= buffer) + sum over a > buffer only of P(arr = a) * P(dep >= a - buffer). Summing over all a after P(arr <= buffer) counts the cases a <= buffer twice and can give more than 1. No sampling noise. Sampling stays for whole routes. Needs untruncated distributions (bahnvorhersage caps at +30 min and so underrates short buffers).
-   - A missed connection costs a fixed penalty (the next departure on the same line).
+   - Not built: a penalty for a missed connection (the next departure on the same line). The arrival times are shown "if all transfers work".
 5. Evaluation
    - Sampling unit: a request (start, destination, time), not a random leg. Sample a few hundred real requests from the validation and test weeks. Each request gets its own shared context, built the same way as in the app.
    - Per leg: absolute error and distribution quality (pinball loss), on the legs of the sampled requests.
@@ -79,13 +84,13 @@ Facts from the September file (14.8M stop events, 5,284 stations):
      - Breakdowns: long-distance against regional, and by hour.
      - Gradient-boosted baseline: fit once on the whole context pool (bahnvorhersage refits per batch and keeps only the last one).
 6. Demo and submission
-   - Streamlit app that replays a past day: pick stations, departure time and "now", see the observed delays of running trains and the ranked routes with risk, then reveal what actually happened.
+   - Streamlit app (done October 5, `app/`): replays a past day. Pick stations, date and "now", see the ranked routes as cards with a timeline, colored transfer levels and a stop list like the DB app, then reveal what actually happened with a switch on the page. Checked in a real browser with Playwright (`tests/test_app_ui.py`).
    - README and video.
 
 # Splits
 | Set | Days | Used for |
 |---|---|---|
-| Context pool | August 1 to September 16 | History the model sees, training data for the gradient-boosted baseline |
+| Context pool | September 1 to 16 (August 1 until October 5) | History the model sees, training data for the gradient-boosted baseline |
 | Validation | September 17 to 23 | Choosing context size, retrieval rule, features, model variant |
 | Test | September 24 to 30 | Final numbers, run once |
 
@@ -103,22 +108,35 @@ Done:
 - shared-context builder, feature lists with optional `days_ago`, TabPFN predict step (`dbdelay/model`), smoke test
 - per-leg evaluation of not-seen legs (`dbdelay/eval/`, results in `data/eval/README.md`): 300 sampled validation runs, baselines `global` and `train_station`, TabPFN variants. Result: `train_station` beats TabPFN overall (arrival pinball 1.19 against 1.28). TabPFN wins only on S-Bahn. These scores use the stops table from before the data-quality fixes.
 
-- October 5: context known at "now" (7 days, whole rides of the same train), last-known-delay features, evaluation on router requests with "now" (`dbdelay/eval/run_requests.py`), `carry_forward` baseline, 95% ranges, route risk with the careful rule and its check (`dbdelay/eval/transfers.py`). Results in `data/eval/README.md`, experiments 4 to 7. On 1,194 validation arrivals, TabPFN beats "the delay stays the same" on running trains (pinball 1.55 against 1.94) and is slightly worse than `train_station` on trains not started (2.79 against 2.59).
+- October 5: context known at "now" (7 days, whole rides of the same train), last-known-delay features, evaluation on router requests with "now" (`dbdelay/eval/run_requests.py`), `carry_forward` baseline, 95% ranges, route risk with four levels and its check (`dbdelay/eval/transfers.py`), the app. Results in `data/eval/README.md`, experiments 4 to 9.
+- Results, arrival pinball (lower is better):
 
-Not done: the gradient-boosted baseline (written, too slow to run), delay model and route risk in the app, test-week run, README and video.
+  | Week | Method | All | Not started | Running |
+  |---|---|---|---|---|
+  | Validation (1,194 arrivals) | `train_station` | 2.41 | 2.72 | 1.99 |
+  | | `carry_forward` | 2.42 | 2.72 | 2.00 |
+  | | TabPFN | 2.28 | 2.79 | 1.55 |
+  | Test (1,118 arrivals, run once) | `train_station` | 2.48 | 2.72 | 2.17 |
+  | | `carry_forward` | 2.27 | 2.72 | 1.71 |
+  | | TabPFN | 2.13 | 2.65 | 1.49 |
+
+  All methods use the 14 days before the request day (baselines changed October 5; before, they used all days from August 1). On running trains TabPFN beats "the delay stays the same" in both weeks (test: −0.21, 95% range −0.44 to −0.01). On trains not started there is no clear difference to `train_station` (test: −0.07, range −0.32 to +0.18; validation +0.08).
+
+Not done: the gradient-boosted baseline (written, too slow to run), departure model in the evaluation of the final setup, README and video.
 
 # Schedule
 - October 3: data prep, router. Done.
 - October 4: data-quality fixes and historic train types. Baselines `global` and `train_station`, per-leg evaluation of not-seen legs. Done.
 - October 5: context known at "now", last known delay, evaluation on router requests, "delay stays the same" baseline, route risk with the careful rule. Done.
-- October 6: Streamlit app with "now", variant comparison, README, video, submit.
+- October 5 (continued): test-week run, transfer levels, the app. Done.
+- October 6: README, video, submit.
 
 # Risks
 - Weak signal for trains not seen yet: the per-train-per-station median gives 2.7 min absolute error against 3.0 for the global median. The result has to stand on calibrated probabilities, not point accuracy.
 - Strong baseline for seen trains: "the delay stays the same" is hard to beat when the stop is close. The room for TabPFN is at 15 min and more ahead, where the delay changes more (mean change +0.5 min at 16 min, +1.1 at 30 min).
 - The last observed delay is a weaker input than DB's own forecast, which also knows schedule buffers and disruptions.
 - The schedule is tight: the change-in-delay model, route risk and the app all land on October 5 and 6.
-- Latency and API cost: several predictions per route.
+- Latency: one search takes about 15 to 20 s through the API, about 50 s with the local model on a Mac.
 - Legs are treated as independent, which is wrong on bad network days. Stated as a limitation.
 - The router only plans on days in the dataset and only transfers within one station.
 - One test week may be unrepresentative.

@@ -226,7 +226,7 @@ context rows and query rows alike. Otherwise the evaluation leaks.
 3. **`transfers`**: pairs of (arriving run, departing run) at the same station with a planned gap
    of at least 5 minutes and at most about 60 minutes (feeds connection evaluation).
 
-Splits follow `plan.md`: context pool Aug 1 to Sep 16, validation Sep 17 to 23, test Sep 24 to 30,
+Splits follow `plan.md`: context pool Sep 1 to 16 (Aug 1 to Sep 16 until October 5), validation Sep 17 to 23, test Sep 24 to 30,
 split by `run_day`.
 
 ## 9. Open questions
@@ -235,7 +235,7 @@ split by `run_day`.
 2. ~~Merge stations by name or by EVA~~ Decided: name (done in `prep.py`).
 3. ~~How to feed 5k stations to TabPFN~~ Decided: raw category, together with `train_key`. The
    shared per-request context holds only a few dozen stations. See "Feature lists" in section 6.
-4. Runs that started on July 31 appear in the August file. ~~Keep them or cut?~~ Decided: cut by `run_day` to Aug 1 to Sep 30 (done in `prep.py`).
+4. Runs that started on July 31 appear in the August file. ~~Keep them or cut?~~ Decided: cut by `run_day` to Aug 1 to Sep 30 (done in `prep.py`). Since October 5 only the September file is used, cut to Sep 1 to 30: runs that started on August 31 are cut the same way.
 5. ~~Is a September-only check enough for the August schema?~~ Decided: yes. Schemas are identical
    and `prep.py` applies the same filters to both files. The section 3 checks stay September-only.
 6. Which source for station coordinates (EVA number to `lat`, `lon`)? Needed for the geography
