@@ -1,9 +1,9 @@
 """HTML for the route cards of the Streamlit app.
 
-Each route is a dict made by `streamlit_app.plan`. The page shows one card per route: the
-rank with a dot in the color of the weakest transfer, the planned times, the arrival
-reached with 80% and 95% certainty, a timeline of legs and transfers, and a vertical list
-of stops like the DB app. A switch in the page shows the actual delays and transfer
+Each route is a dict made by `streamlit_app.plan`. The page shows one card per route, in
+rank order: a dot in the color of the weakest transfer, the planned departure and arrival
+as large as in the DB app, the arrival reached with 80% and 95% certainty, a timeline of
+legs and transfers, and a vertical list of stops like the DB app. A switch in the page shows the actual delays and transfer
 outcomes. It works in the browser alone, so opened stop lists stay open.
 """
 
@@ -29,13 +29,13 @@ CSS = """
 .rr .l1 { --c:var(--l1); } .rr .l2 { --c:var(--l2); } .rr .l3 { --c:var(--l3); } .rr .l4 { --c:var(--l4); }
 .rr .l0 { --c:var(--rail); }
 .rr .route { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:18px 20px; margin-bottom:14px; }
-.rr .head { display:grid; grid-template-columns:auto 1fr auto; gap:18px; align-items:center; }
-.rr .rank { display:flex; align-items:center; gap:10px; font-weight:700; color:var(--muted); }
-.rr .rank .dot { width:18px; height:18px; }
-.rr .planned { color:var(--muted); font-size:14px; }
-.rr .arrive { font-size:21px; font-weight:700; }
-.rr .arrive small { font-size:14px; font-weight:400; color:var(--muted); }
-.rr .meta { text-align:right; color:var(--muted); font-size:14px; }
+.rr .head { display:flex; flex-wrap:wrap; align-items:center; gap:4px 12px; }
+.rr .head .dot { width:16px; height:16px; }
+.rr .times { font-size:24px; font-weight:800; font-variant-numeric:tabular-nums; }
+.rr .meta { color:var(--muted); font-size:16px; }
+.rr .meta span + span::before { content:"|"; margin:0 10px; color:var(--line); }
+.rr .forecast { color:var(--muted); font-size:14px; margin-top:2px; }
+.rr .forecast b { color:var(--ink); font-variant-numeric:tabular-nums; }
 .rr .track { display:flex; align-items:center; height:30px; margin-top:16px; }
 .rr .leg { height:24px; border-radius:6px; background:var(--train); color:var(--train-ink); font-size:12px; font-weight:700;
   display:flex; align-items:center; justify-content:center; overflow:hidden; white-space:nowrap; padding:0 6px; min-width:28px; }
@@ -78,7 +78,6 @@ CSS = """
 .rr details.mid::before { content:""; position:absolute; left:97px; top:0; bottom:0; width:3px; background:var(--rail); }
 .rr details.mid > summary { padding:2px 0 8px 118px; }
 .rr .foot { color:var(--muted); font-size:13px; margin-top:16px; }
-@media (max-width:720px) { .rr .head { grid-template-columns:auto 1fr; } .rr .meta { grid-column:1 / -1; text-align:left; } }
 </style>
 """
 
@@ -191,19 +190,20 @@ def card(route: dict) -> str:
                 f'<i class="dot l{t["level"] or 0}"></i></div>'
             )
     n = len(legs) - 1
-    caveat = "" if route["weakest"] == 1 else " · if all transfers work"
+    caveat = "" if route["weakest"] == 1 else ", if all transfers work"
     minutes = int(
         (route["planned_arrival"] - route["planned_departure"]).total_seconds() // 60
     )
+    transfers = "Direct" if n == 0 else f"{n} transfer" + ("s" if n > 1 else "")
     return (
         '<div class="route"><div class="head">'
-        f'<div class="rank">#{route["rank"]}<i class="dot l{route["weakest"]}"></i></div>'
-        f'<div><div class="planned">Planned {_hm(route["planned_departure"])} → '
-        f"{_hm(route['planned_arrival'])}</div>"
-        f'<div class="arrive">by {_hm(route["arrival_q80"])} <small>(80%) · by '
-        f"{_hm(route['arrival_q95'])} (95%){caveat}</small></div></div>"
-        f'<div class="meta">{"direct" if n == 0 else f"{n} transfer" + ("s" if n > 1 else "")}'
-        f"<br>{minutes // 60} h {minutes % 60} min</div></div>"
+        f'<i class="dot l{route["weakest"]}"></i>'
+        f'<span class="times">{_hm(route["planned_departure"])} – '
+        f"{_hm(route['planned_arrival'])}</span>"
+        f'<span class="meta"><span>{minutes // 60}h {minutes % 60:02d}min</span>'
+        f"<span>{transfers}</span></span></div>"
+        f'<div class="forecast">Arrives by <b>{_hm(route["arrival_q80"])}</b> with 80% '
+        f"chance, by <b>{_hm(route['arrival_q95'])}</b> with 95%{caveat}</div>"
         f'<div class="track">{"".join(bar)}</div>'
         f'<div class="ends"><span>{escape(legs[0]["stops"][0]["station"])}</span>'
         f"<span>{escape(legs[-1]['stops'][-1]['station'])}</span></div>"
