@@ -220,7 +220,7 @@ def _curve(leg: dict, room: float | None, actual) -> str:
     green where the transfer still works and red where it fails. At the destination
     (`room` None) it has one color. `actual` (the real delay, None if unknown) is marked
     only when the switch is on. Drawn with clip-path, because st.html removes SVG."""
-    # an early arrival is drawn as on time: it makes the transfer just the same, and
+    # an early arrival is drawn as on time (and "expected" is shown as at least +0): it makes the transfer just the same, and
     # TabPFN's smooth curve spreads the many on-time arrivals below 0 (15% early where
     # 2.4% of all arrivals in the data are early)
     qs = [(q, max(d, 0.0)) for q, d in leg["quantiles"]]
@@ -269,7 +269,7 @@ def _curve(leg: dict, room: float | None, actual) -> str:
     xs = [sx(g[0][1]) for g in groups]
     above = ""
     for i, g in enumerate(groups):
-        values = dict.fromkeys(f"{d:+.0f}" for _, d in g)  # unique, in order
+        values = dict.fromkeys(f"{round(d):+d}" for _, d in g)  # unique, in order
         side = ""
         if i + 1 < len(xs) and xs[i + 1] - xs[i] < 25:
             side = "r"
@@ -293,9 +293,7 @@ def _curve(leg: dict, room: float | None, actual) -> str:
 
     ticks = f'<span style="left:{sx(0):.1f}%"><b>0</b></span>'
     if room is not None:
-        last_chance = (
-            f'<span style="left:{sx(room):.1f}%"><b>{room:+.0f}</b>last chance</span>'
-        )
+        last_chance = f'<span style="left:{sx(room):.1f}%"><b>{round(room):+d}</b>last chance</span>'
         # without the 0 where the two labels would overlap
         ticks = last_chance if abs(sx(room) - sx(0)) <= 5 else ticks + last_chance
     return (
@@ -331,7 +329,7 @@ def _leg(leg: dict) -> str:
     stops = leg["stops"]
     first, last, mid = stops[0], stops[-1], stops[1:-1]
     known = (
-        f'<div class="known">running, last known delay {leg["last_known_delay"]:+.0f} min</div>'
+        f'<div class="known">running, last known delay {round(leg["last_known_delay"]):+d} min</div>'
         if leg["last_known_delay"] is not None
         else ""
     )
@@ -351,7 +349,7 @@ def _leg(leg: dict) -> str:
         html += "</div></div>"
     t = leg["transfer_after"]
     pred = (
-        f'<div class="pred">expected <b>{leg["q50"]:+.0f}</b></div>'
+        f'<div class="pred">expected <b>{round(max(leg["q50"], 0)):+d}</b></div>'
         if leg["q50"] is not None
         else ""
     )
@@ -399,7 +397,7 @@ def card(route: dict) -> str:
     transfers = "Direct" if n == 0 else f"{n} transfer" + ("s" if n > 1 else "")
     q50 = legs[-1]["q50"]
     expected = (
-        f'<span class="exp">(expected <b>{q50:+.0f}</b>)</span>'
+        f'<span class="exp">(expected <b>{round(max(q50, 0)):+d}</b>)</span>'
         if q50 is not None
         else ""
     )
