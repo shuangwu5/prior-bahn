@@ -92,22 +92,23 @@ def at(day: date, hour: int, minute: int = 0) -> datetime:
     return datetime.combine(day, time(hour, minute))
 
 
-def test_window_wraps_at_midnight():
-    # query on a Sunday at 00:20, by a train that is not in the context: the window is
-    # Saturday 23:20 to 23:59 and Sunday 00:00 to 00:19
+def test_window_covers_the_last_7_days_and_wraps_at_midnight():
+    # query at 00:20 by an RE that is not in the context: the window is 23:20 to 23:59 and
+    # 00:00 to 00:19 on each of the last 7 days. The context rows are RB trains, so the
+    # general group (query train types only) adds nothing.
     query = made_up_stops([("q", DAY, "RE 9", None, at(DAY, 0, 20), None, None)])
-    saturday, sunday = DAY - timedelta(days=8), DAY - timedelta(days=7)
+    d2, d3, d9 = (DAY - timedelta(days=n) for n in (2, 3, 9))
     stops = made_up_stops(
         [
-            ("saturday 23:30", saturday, "RE 1", None, at(saturday, 23, 30), None, 0),
-            ("sunday 00:10", sunday, "RE 1", None, at(sunday, 0, 10), None, 0),
-            ("saturday 23:10", saturday, "RE 1", None, at(saturday, 23, 10), None, 0),
-            ("sunday 23:30", sunday, "RE 1", None, at(sunday, 23, 30), None, 0),
-            ("sunday 00:25", sunday, "RE 1", None, at(sunday, 0, 25), None, 0),
+            ("23:30", d2, "RB 1", None, at(d2, 23, 30), None, 0),
+            ("00:10", d3, "RB 1", None, at(d3, 0, 10), None, 0),
+            ("23:10", d2, "RB 1", None, at(d2, 23, 10), None, 0),
+            ("00:25", d3, "RB 1", None, at(d3, 0, 25), None, 0),
+            ("older than 7 days", d9, "RB 1", None, at(d9, 23, 30), None, 0),
         ]
     ).lazy()
-    context = build_context(stops, query, START, 10, (0, 1, 0))
-    assert sorted(context["run_id"]) == ["saturday 23:30", "sunday 00:10"]
+    context = build_context(stops, query, START, 10)
+    assert sorted(context["run_id"]) == ["00:10", "23:30"]
 
 
 def test_no_event_on_the_query_day_leaks():
@@ -131,7 +132,7 @@ def test_no_event_on_the_query_day_leaks():
             ("before midnight", eve, "RE 1", at(eve, 23, 40), at(eve, 23, 45), 2, 3),
         ]
     ).lazy()
-    context = build_context(stops, query, START, 10, (1, 0, 0))
+    context = build_context(stops, query, START, 10)
     assert sorted(context["run_id"]) == ["before midnight", "earlier day"]
 
 
@@ -156,7 +157,7 @@ def test_rows_of_the_request_day_count_only_before_now():
             ("in the slot, after now", DAY, "RE 1", None, at(DAY, 15, 30), None, 0),
         ]
     ).lazy()
-    context = build_context(stops, query, at(DAY, 14), 10, (0, 1, 0))
+    context = build_context(stops, query, at(DAY, 14), 10)
     assert context.sort("run_id").select("run_id", "arr_delay", "dep_delay").rows() == [
         ("arrived, not left yet", 0, None),
         ("left 13:35", None, 5),
@@ -165,32 +166,28 @@ def test_rows_of_the_request_day_count_only_before_now():
 
 def test_same_train_group_takes_the_stops_passed_today_first():
     # now is 14:00. The query is stop 3 of run "q". Stops 1 and 2 were passed before now,
-    # stop 2 only arrived (it leaves late, after now). Stop 4 has not happened yet.
+    # stop 2 only arrived (it leaves late, after now). Stop 4 has not happened yet. A week
+    # ago, the whole ride counts, also stop 1 at A, which is not a query station.
+    week_ago = DAY - timedelta(days=7)
     run = made_up_stops(
         [
             ("q", DAY, "ICE 9", None, at(DAY, 13), None, 4),
             ("q", DAY, "ICE 9", at(DAY, 13, 40), at(DAY, 13, 50), 6, 12),
             ("q", DAY, "ICE 9", at(DAY, 14, 30), at(DAY, 14, 32), None, None),
             ("q", DAY, "ICE 9", at(DAY, 15), None, None, None),
-            (
-                "week ago",
-                DAY - timedelta(days=7),
-                "ICE 9",
-                at(DAY - timedelta(days=7), 14, 30),
-                None,
-                3,
-                None,
-            ),
+            ("week ago", week_ago, "ICE 9", None, at(week_ago, 13), None, 2),
+            ("week ago", week_ago, "ICE 9", at(week_ago, 14, 30), None, 3, None),
         ]
     ).with_columns(
-        stop_num=pl.Series([1, 2, 3, 4, 3], dtype=pl.Int32),
-        station=pl.Series(["A", "B", "C", "D", "C"]),
+        stop_num=pl.Series([1, 2, 3, 4, 1, 3], dtype=pl.Int32),
+        station=pl.Series(["A", "B", "C", "D", "A", "C"]),
     )
     query = run.filter(pl.col("run_id") == "q", pl.col("stop_num") == 3)
-    context = build_context(run.lazy(), query, at(DAY, 14), 10, (1, 0, 0))
+    context = build_context(run.lazy(), query, at(DAY, 14), 10)
     assert context.select("run_id", "stop_num", "arr_delay", "dep_delay").rows() == [
         ("q", 2, 6, None),
         ("q", 1, None, 4),
+        ("week ago", 1, None, 2),
         ("week ago", 3, 3, None),
     ]
 
@@ -207,7 +204,7 @@ def test_same_station_group_is_split_by_train_type():
             for i in range(n)
         ]
     ).lazy()
-    context = build_context(stops, query, START, 6, (0, 1, 0))
+    context = build_context(stops, query, START, 6)
     assert context["train_type"].value_counts().sort("train_type").rows() == [
         ("ICE", 2),
         ("RE", 4),
@@ -215,7 +212,8 @@ def test_same_station_group_is_split_by_train_type():
 
 
 def test_general_group_is_split_evenly_over_query_train_types():
-    # S-Bahn has ten times more rows than NJ, ICE is not in the query
+    # S-Bahn has ten times more rows than NJ, ICE is not in the query. The rows are at
+    # another station than the query, so only the general group can take them.
     query = made_up_stops(
         [
             ("q1", DAY, "S 1", None, at(DAY, 8), None, None),
@@ -223,18 +221,25 @@ def test_general_group_is_split_evenly_over_query_train_types():
         ]
     )
     earlier = DAY - timedelta(days=3)
-    stops = made_up_stops(
-        [(f"s{i}", earlier, "S 2", None, at(earlier, 9), None, 0) for i in range(40)]
-        + [
-            (f"n{i}", earlier, "NJ 41", None, at(earlier, 21), None, 5)
-            for i in range(4)
-        ]
-        + [
-            (f"i{i}", earlier, "ICE 5", None, at(earlier, 12), None, 1)
-            for i in range(4)
-        ]
-    ).lazy()
-    context = build_context(stops, query, START, 8, (0, 0, 1))
+    stops = (
+        made_up_stops(
+            [
+                (f"s{i}", earlier, "S 2", None, at(earlier, 9), None, 0)
+                for i in range(40)
+            ]
+            + [
+                (f"n{i}", earlier, "NJ 41", None, at(earlier, 21), None, 5)
+                for i in range(4)
+            ]
+            + [
+                (f"i{i}", earlier, "ICE 5", None, at(earlier, 12), None, 1)
+                for i in range(4)
+            ]
+        )
+        .with_columns(station=pl.lit("X"))
+        .lazy()
+    )
+    context = build_context(stops, query, START, 8)
     assert context["train_type"].value_counts().sort("train_type").rows() == [
         ("NJ", 4),
         ("S", 4),
@@ -250,3 +255,34 @@ def test_features_share_categories(stops, query, model):
     assert list(X_train.columns) == feature_columns(model)
     assert X_train["station"].cat.categories.equals(X_query["station"].cat.categories)
     assert X_query["station"].notna().all()
+
+
+def test_same_train_looks_further_back_than_the_other_groups():
+    # 10 days ago: the query's own train is used (14 days back), another RE at the same
+    # station is not (7 days back)
+    query = made_up_stops([("q", DAY, "RE 9", None, at(DAY, 10), None, None)])
+    ten_days_ago = DAY - timedelta(days=10)
+    stops = made_up_stops(
+        [
+            (
+                "same train",
+                ten_days_ago,
+                "RE 9",
+                None,
+                at(ten_days_ago, 9, 30),
+                None,
+                1,
+            ),
+            (
+                "other train",
+                ten_days_ago,
+                "RE 1",
+                None,
+                at(ten_days_ago, 9, 30),
+                None,
+                2,
+            ),
+        ]
+    ).lazy()
+    context = build_context(stops, query, START, 10, same_train_days=14)
+    assert context["run_id"].to_list() == ["same train"]

@@ -1,15 +1,17 @@
 """Build the one shared context for a request (docs/plan.md, component 3).
 
 The context is made of rows of the stops table that are known at "now", the time the user
-picks (also the earliest departure). It has three groups:
+picks (also the earliest departure). It uses the request day before "now" and the
+DAYS_BACK days before it, in three groups:
 1. the same train: first the stops it passed today before "now" (the strongest signal),
-   then the same train at the same station on earlier days
-2. other trains at those stations: first the rows of the 60 minutes before "now", which
-   show what is going on right now, then rows of earlier days on the same weekday in the
-   60 minutes before each query row's planned time
-3. a small general sample from all stations
-Groups 2 and 3 are split evenly over the train types of the query. The same context
-serves both the arrival model and the departure model.
+   then its whole rides on the earlier days, most recent day first
+2. other trains at the query's stations: first the rows of the 60 minutes before "now",
+   which show what is going on right now, then rows of the earlier days in the 60 minutes
+   before each query row's planned time
+3. a general sample from all stations that fills the rest of the context
+Groups 1 and 2 take every row they find, as long as the context has room. Groups 2 and 3
+are split evenly over the train types of the query. The same context serves both the
+arrival model and the departure model.
 
 S-Bahn delays behave differently from those of other trains. When no query train is an
 S-Bahn, S-Bahn rows are left out of the second group. The third group has no S-Bahn rows
@@ -17,17 +19,18 @@ then anyway, since it only takes the train types of the query.
 """
 
 import math
-from datetime import datetime, timedelta
+from datetime import datetime, time, timedelta
 
 import polars as pl
 
-DEFAULT_SIZE = 2000
-DEFAULT_SHARES = (0.4, 0.4, 0.2)  # same train, same station and time, general
+DEFAULT_SIZE = 10_000
+DAYS_BACK = 7  # earlier days the context looks at, besides the request day
+SAME_TRAIN_DAYS = 7  # earlier days of the same train's rides (group 1)
 WINDOW_MIN = 60  # context rows come from the 60 minutes before the query time
 # The general group is split evenly over the train types of the query. To avoid loading
 # all rows of a type (S-Bahn alone has about 13M), we first keep only the runs whose hashed
-# run_id falls under a per mille share chosen per type, so that each type gives about this
-# many rows. Then the final rows are sampled from those.
+# run_id falls under a per mille share chosen per type, so that each type gives about
+# twice the rows it needs (at least this many). Then the final rows are sampled from those.
 GENERAL_POOL_ROWS_PER_TYPE = 5000
 
 
@@ -82,14 +85,17 @@ def build_context(
     query: pl.DataFrame,
     now: datetime,
     size: int = DEFAULT_SIZE,
-    shares: tuple[float, float, float] = DEFAULT_SHARES,
+    days_back: int = DAYS_BACK,
+    same_train_days: int = SAME_TRAIN_DAYS,
     seed: int = 0,
     skip_s_bahn: bool = True,
 ) -> pl.DataFrame:
     """Context rows for `query` (rows of the stops table), as known at `now`.
 
-    Only events with an actual time before `now` are used (see `known_at`). The query's own
-    runs appear only in the first group, with the stops they passed before `now`.
+    Only events with an actual time before `now` are used (see `known_at`), from runs that
+    started at most `days_back` days before the request day (`same_train_days` for the
+    rides of the same train). The query's own runs appear only in the first group, with the
+    stops they passed before `now`.
     """
     # filter for the second group, see the module docstring
     others = (
@@ -98,85 +104,91 @@ def build_context(
         else pl.lit(True)
     )
     types = sorted(query["train_type"].unique().drop_nulls())
-    n_same_train, n_same_slot, n_general = (round(size * s) for s in shares)
     of_query_runs = pl.col("run_id").is_in(query["run_id"].unique().implode())
-    known = known_at(stops, now).pipe(with_minute_of_day)
 
-    # one collect for the first two groups: only the query's stations and runs are read
+    def since(days: int) -> pl.Expr:
+        return pl.col("run_day") >= datetime.combine(
+            now.date() - timedelta(days=days), time()
+        )
+
+    known = known_at(stops.filter(since(max(days_back, same_train_days))), now).pipe(
+        with_minute_of_day
+    )
+
+    # one collect for the first two groups: only the query's stations and trains are read
     near = known.filter(
-        pl.col("station").is_in(query["station"].unique().implode()) | of_query_runs
+        pl.col("station").is_in(query["station"].unique().implode())
+        | pl.col("train_key").is_in(query["train_key"].unique().implode())
     ).collect()
     # the query's own runs today, at the stops they passed before now (not the query rows)
     own = near.filter(of_query_runs).join(
         query.select("run_id", "stop_num"), on=["run_id", "stop_num"], how="anti"
     )
-    local = near.filter(~of_query_runs)
+    others_near = near.filter(~of_query_runs)
 
-    pairs = query.select("train_key", "station").unique()
     same_train = pl.concat(
         [
-            own.sort(
-                "stop_num", descending=True
-            ),  # the latest stops are the best match
-            local.join(pairs, on=["train_key", "station"]).sort(
-                "run_day",
-                descending=True,  # the most recent days are the best match
-            ),
+            # the latest stops are the best match
+            own.sort("stop_num", descending=True),
+            # whole rides on the earlier days, the most recent days first
+            others_near.filter(
+                pl.col("train_key").is_in(query["train_key"].unique().implode()),
+                since(same_train_days),
+            ).sort("run_day", "run_id", "stop_num", descending=[True, False, False]),
         ],
         how="vertical",
-    ).head(n_same_train)
+    ).head(size)
 
+    local = others_near.filter(
+        pl.col("station").is_in(query["station"].unique().implode()),
+        others,
+        since(days_back),
+    )
     # rows of the last 60 minutes before now: the latest known event happened then
     latest = pl.max_horizontal(actual_time("arr"), actual_time("dep"))
-    recent = local.filter(others, latest >= now - timedelta(minutes=WINDOW_MIN))
+    recent = local.filter(latest >= now - timedelta(minutes=WINDOW_MIN))
 
-    # earlier days: for a query row at 14:40, the slot is 13:40 to 14:39 on the same
-    # weekday. Past midnight (a query at 00:20 looks at 23:20 to 23:59) the rows belong to
-    # the previous weekday.
+    # earlier days: for a query row at 14:40, the slot is 13:40 to 14:39 of every day.
+    # Past midnight (a query at 00:20) it is 23:20 to 23:59 and 00:00 to 00:19.
     slots = (
         with_minute_of_day(query)
-        .select("station", "weekday", "minute_of_day")
+        .select("station", "minute_of_day")
         .drop_nulls()
         .unique()
         .join(pl.DataFrame({"back": range(1, WINDOW_MIN + 1)}), how="cross")
-        .with_columns(
-            wrapped=pl.col("minute_of_day") - pl.col("back") < 0,
-        )
         .select(
             "station",
-            pl.when("wrapped")
-            .then((pl.col("weekday") + 5) % 7 + 1)  # 1 is Monday, the day before 1 is 7
-            .otherwise(pl.col("weekday"))
-            .cast(pl.UInt8)
-            .alias("weekday"),
             ((pl.col("minute_of_day") - pl.col("back")) % 1440)
             .cast(pl.Int16)
             .alias("minute_of_day"),
         )
         .unique()
     )
-    in_slot = local.filter(others).join(
-        slots, on=["station", "weekday", "minute_of_day"]
+    in_slot = local.join(slots, on=["station", "minute_of_day"]).join(
+        recent.select("run_id", "stop_num"), on=["run_id", "stop_num"], how="anti"
     )
 
-    # the recent rows first, the earlier days fill the rest
-    now_rows = _split_by_type(recent, types, n_same_slot, seed)
-    in_slot = in_slot.join(
-        now_rows.select("run_id", "stop_num"), on=["run_id", "stop_num"], how="anti"
-    )
+    # the recent rows first, the earlier days next, as long as there is room
+    room = size - len(same_train)
+    now_rows = _split_by_type(recent, types, room, seed)
     same_slot = pl.concat(
-        [now_rows, _split_by_type(in_slot, types, n_same_slot - len(now_rows), seed)],
+        [now_rows, _split_by_type(in_slot, types, room - len(now_rows), seed)],
         how="vertical",
     )
-
-    general = _general_sample(
-        stops, known.filter(~of_query_runs), types, n_general, seed
+    first = pl.concat([same_train, same_slot], how="vertical").unique(
+        ["run_id", "stop_num"], keep="first", maintain_order=True
     )
 
-    context = pl.concat([same_train, same_slot, general], how="vertical")
-    return context.unique(
-        ["run_id", "stop_num"], keep="first", maintain_order=True
-    ).drop("minute_of_day")
+    # the general group fills the rest, without rows already taken
+    general = _general_sample(
+        stops.filter(since(days_back)),
+        known.filter(~of_query_runs, since(days_back)),
+        types,
+        size - len(first),
+        seed,
+    ).join(first.select("run_id", "stop_num"), on=["run_id", "stop_num"], how="anti")
+
+    return pl.concat([first, general], how="vertical").drop("minute_of_day")
 
 
 def _general_sample(
@@ -192,11 +204,12 @@ def _general_sample(
         return known.head(0).collect()
     of_types = pl.col("train_type").is_in(types)
 
-    # per mille of runs to keep per type, so that each type gives about
-    # GENERAL_POOL_ROWS_PER_TYPE rows (all runs of a type with fewer rows)
+    # per mille of runs to keep per type, so that each type gives about `target` rows (all
+    # runs of a type with fewer rows). `stops` holds only the days of the context window.
     counts = stops.filter(of_types).group_by("train_type").len().collect()
+    target = max(GENERAL_POOL_ROWS_PER_TYPE, 2 * math.ceil(n / len(types)))
     per_mille = {
-        t: min(1000, max(1, math.ceil(1000 * GENERAL_POOL_ROWS_PER_TYPE / n_rows)))
+        t: min(1000, max(1, math.ceil(1000 * target / n_rows)))
         for t, n_rows in counts.rows()
     }
     # hash() turns each run_id into a fixed integer, so "hash % 1000 < per_mille" keeps the

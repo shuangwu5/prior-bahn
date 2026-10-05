@@ -32,18 +32,12 @@ from dbdelay.model.predict import predict_delays
 STOPS = "data/processed/stops.parquet"
 MODELS = ["arr", "dep"]
 # TabPFN variants: whether S-Bahn rows are left out of the context for other trains
-# (see dbdelay.model.context), whether "days_ago" is a feature, and optionally the shares
-# of the three context groups (same train, same station and time, general)
+# (see dbdelay.model.context) and whether "days_ago" is a feature. The cached results in
+# data/eval were made with an older context (2,000 rows, fixed shares, all earlier days).
 TABPFN = {
     "tabpfn": {"skip_s_bahn": False, "days_ago": False},
     "tabpfn_no_sbahn": {"skip_s_bahn": True, "days_ago": False},
     "tabpfn_no_sbahn_days_ago": {"skip_s_bahn": True, "days_ago": True},
-    # mostly the same train's own past stops: up to 80% of the context, no general group
-    "tabpfn_same_train": {
-        "skip_s_bahn": True,
-        "days_ago": True,
-        "shares": (0.8, 0.2, 0.0),
-    },
 }
 METHODS = ["global", "train_station", *TABPFN]
 
@@ -72,7 +66,6 @@ def tabpfn(
             run,
             datetime.combine(day, clock()),
             skip_s_bahn=config["skip_s_bahn"],
-            **({"shares": config["shares"]} if "shares" in config else {}),
         )
         context, query = with_days_ago(context, day), with_days_ago(run, day)
         pred = pl.concat(
