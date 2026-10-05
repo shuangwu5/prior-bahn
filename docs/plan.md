@@ -101,35 +101,83 @@ Rules:
 - All three evaluation levels use the same validation and test days.
 - Evaluate on a sample of a few hundred requests (stratified by train type and hour) to limit API cost.
 
-# Status (October 5)
-Done:
-- data prep (`dbdelay/data/prep.py`) with the data-quality fixes
-- router and Streamlit UI (`dbdelay/router`, `app/`)
-- shared-context builder, feature lists with optional `days_ago`, TabPFN predict step (`dbdelay/model`), smoke test
-- per-leg evaluation of not-seen legs (`dbdelay/eval/`, results in `data/eval/README.md`): 300 sampled validation runs, baselines `global` and `train_station`, TabPFN variants. Result: `train_station` beats TabPFN overall (arrival pinball 1.19 against 1.28). TabPFN wins only on S-Bahn. These scores use the stops table from before the data-quality fixes.
+# Status and handoff (end of October 5)
 
-- October 5: context known at "now" (7 days, whole rides of the same train), last-known-delay features, evaluation on router requests with "now" (`dbdelay/eval/run_requests.py`), `carry_forward` baseline, 95% ranges, route risk with four levels and its check (`dbdelay/eval/transfers.py`), the app. Results in `data/eval/README.md`, experiments 4 to 9.
-- Results, arrival pinball (lower is better):
+The deadline is October 6, 2026. The product works end to end on `main` (no remote, nothing
+pushed). What is left is the demo video and the submission.
 
-  | Week | Method | All | Not started | Running |
-  |---|---|---|---|---|
-  | Validation (1,194 arrivals) | `train_station` | 2.41 | 2.72 | 1.99 |
-  | | `carry_forward` | 2.42 | 2.72 | 2.00 |
-  | | TabPFN | 2.28 | 2.79 | 1.55 |
-  | Test (1,118 arrivals, run once) | `train_station` | 2.48 | 2.72 | 2.17 |
-  | | `carry_forward` | 2.27 | 2.72 | 1.71 |
-  | | TabPFN | 2.13 | 2.65 | 1.49 |
+## Done
 
-  All methods use the 14 days before the request day (baselines changed October 5; before, they used all days from August 1). On running trains TabPFN beats "the delay stays the same" in both weeks (test: −0.21, 95% range −0.44 to −0.01). On trains not started there is no clear difference to `train_station` (test: −0.07, range −0.32 to +0.18; validation +0.08).
+| Part | Where | Notes |
+|---|---|---|
+| Data prep, September only | `dbdelay/data/prep.py` → `data/processed/stops.parquet` | Data-quality fixes (section 4 of `data-prep-plan.md`). Context pool Sep 1–16, validation Sep 17–23, test Sep 24–30. |
+| Router | `dbdelay/router/core.py`, `find_journeys` in `dbdelay/eval/requests.py` | Up to 10 routes in the app, 3 in the evaluation. 5 min minimum transfer when planning. |
+| Context known at "now" | `dbdelay/model/context.py` | Parts 1–3 as in component 3. Final size: 5,000 rows, 14 days for the same train, 7 for the rest. |
+| Last known delay | `dbdelay/model/last_known.py` | Features plus "predict the change". Context rows replay their day at the same clock time. |
+| TabPFN call | `dbdelay/model/predict.py`, `dbdelay/model/request.py` | `version` "v3.5" or "v3.5-fast", `local` or API. `request.py` holds the final setup. |
+| Transfer levels and ranking | `dbdelay/risk.py` | Four levels with 2 min to change trains. Ranking: 80% arrival, then fewer transfers. |
+| Evaluation | `dbdelay/eval/run_requests.py`, `dbdelay/eval/transfers.py`, `dbdelay/eval/baselines.py` | 198 validation and 191 test searches, arrivals only. Baselines `global`, `train_station`, `carry_forward`, all with 14 days of history. 95% ranges by resampling searches. |
+| App | `app/streamlit_app.py`, `app/render.py` | Cards with timeline, colored transfer dots, DB-style stop list, in-page "Show what actually happened" switch, model choice, prediction time. `LOCAL = True` (API credits are nearly used up). |
+| Tests | `tests/` | 26 unit tests. `tests/test_app_ui.py` checks the app in Chrome with Playwright, only when the app runs at `APP_URL`. |
+| Docs | `README.md`, this file, `data-prep-plan.md` | README has results, setup, limitations. The experiment log is `data/eval/README.md` (not in git, experiments 1–10). |
 
-Not done: the gradient-boosted baseline (written, too slow to run), departure model in the evaluation of the final setup, README and video.
+Results, arrival pinball (lower is better), all methods with the 14 days before the request day:
 
-# Schedule
-- October 3: data prep, router. Done.
-- October 4: data-quality fixes and historic train types. Baselines `global` and `train_station`, per-leg evaluation of not-seen legs. Done.
-- October 5: context known at "now", last known delay, evaluation on router requests, "delay stays the same" baseline, route risk with the careful rule. Done.
-- October 5 (continued): test-week run, transfer levels, the app. Done.
-- October 6: README, video, submit.
+| Week | Method | All | Not started | Running |
+|---|---|---|---|---|
+| Validation (1,194 arrivals) | `train_station` | 2.41 | 2.72 | 1.99 |
+| | `carry_forward` | 2.42 | 2.72 | 2.00 |
+| | TabPFN | 2.28 | 2.79 | 1.55 |
+| Test (1,118 arrivals, run once) | `train_station` | 2.48 | 2.72 | 2.17 |
+| | `carry_forward` | 2.27 | 2.72 | 1.71 |
+| | TabPFN | 2.13 | 2.65 | 1.49 |
+
+On running trains TabPFN beats "the delay stays the same" in both weeks (test: −0.21, 95%
+range −0.44 to −0.01). On trains not started there is no clear difference to `train_station`
+(test −0.07, range −0.32 to +0.18; validation +0.08). Transfer levels held 91–93% / 80–84% /
+62–69% / 38–41% (very likely / likely / uncertain / unlikely). The early per-leg evaluation
+on 300 sampled runs (`dbdelay/eval/run.py`, experiments 1–3) is superseded.
+
+## Left, in order
+
+1. **Demo video.** Not started. Suggested story: Heidelberg Hbf → Lübeck Hbf, September 24,
+   08:00. Show the ranked routes, the colored transfers (Hamburg Hbf is "uncertain", the
+   ECE 8 is predicted +15, 80%: +35), open "Stops and times", then tick "Show what actually
+   happened" (the ECE 8 arrived +31, the transfer held). Then the README results table.
+2. **Submit.** Read the judging criteria and the submission form on
+   https://platform.priorlabs.ai/hackathon-3.5 first (it could not be fetched automatically).
+   Pushing to a public repo needs a remote, which does not exist yet: ask the user.
+3. **Optional, if time is left** (none started):
+   - The router misses late trains planned before "now" that you could still catch (example:
+     ICE 1205 on September 20, planned to leave Berlin Hbf at 13:56, 18 min late).
+   - A missed transfer is not turned into a later arrival (penalty: the next departure on the
+     same line). The cards say "if all transfers work".
+   - The departure model is not evaluated for the final setup (arrivals only; arrival and
+     departure delays at one stop are within 1 min at 93% of stops).
+   - TabPFN 3.5 against 3.5 Fast: only a 2-search timing test (Fast about 10% slower, too few
+     to judge). The app shows the prediction time of each search for a comparison by hand.
+   - TabPFN's q80 and q95 are a bit optimistic (74% and 91% of arrivals under them).
+   - Gradient-boosted baseline: written, too slow to run.
+   - Proposals in `docs/bahnvorhersage-lessons.md` not adopted (CRPS, geography features).
+
+## How to pick it up
+
+- Setup and commands: `README.md` (download September, `python -m dbdelay.data.prep`, app,
+  evaluation, tests).
+- Not in git: `data/` (raw file, stops table, evaluation caches and scores) and `.env` (the
+  Prior Labs key, `PRIORLABS_API_KEY`). TabPFN predictions of the evaluation are cached per
+  search in `data/eval/<split>/tabpfn_cache/`, so re-scoring needs no API calls.
+- API credits are nearly used up: use the local model (`--local` in the evaluation, `LOCAL`
+  in the app). One app search takes about 50 s locally on a Mac, about 15–20 s via the API.
+- Streamlit keeps imported modules (`app/render.py`, `dbdelay/...`) after a code change.
+  Restart the server after changing them, not just "Rerun".
+- `st.html` cleans the HTML with DOMPurify, but `<style>`, `<details>` and `<input>` survive.
+  The reveal switch is CSS only (`:has(#rr-reveal:checked)`), so opened stop lists stay open.
+- Working conventions of the user: uv only (`uv run --no-sync ...`), ruff via pre-commit,
+  feature branch for bigger work, Conventional Commits in plain, simple English, commit model
+  or context changes only after their evaluation runs finished, stay at plan level when
+  brainstorming, never publish anything online (mockups as local files), explain in short,
+  simple sentences.
 
 # Risks
 - Weak signal for trains not seen yet: the per-train-per-station median gives 2.7 min absolute error against 3.0 for the global median. The result has to stand on calibrated probabilities, not point accuracy.
@@ -142,6 +190,4 @@ Not done: the gradient-boosted baseline (written, too slow to run), departure mo
 - One test week may be unrepresentative.
 
 # Open points
-- Read the judging criteria on the hackathon page (it could not be fetched automatically).
-- Decide which of the remaining proposals from `docs/bahnvorhersage-lessons.md` to adopt (evaluation additions above, geography features in `docs/data-prep-plan.md`, section 6).
-- The router only uses trains planned at or after "now". A late train planned before "now" may still be catchable (example: ICE 1205 on September 20, planned to leave Berlin Hbf at 13:56, 18 min late). Decide whether the router should offer such trains.
+See "Left, in order" above.
