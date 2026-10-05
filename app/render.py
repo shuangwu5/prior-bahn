@@ -75,7 +75,10 @@ CSS = """
 .rr:has(#rr-reveal:checked) .d, .rr:has(#rr-reveal:checked) .held, .rr:has(#rr-reveal:checked) .missed { display:inline; }
 .rr .top { display:flex; flex-wrap:wrap; gap:12px 24px; align-items:center; justify-content:space-between; margin:4px 0 14px; }
 .rr .top .legend { margin:0; }
-.rr .reveal { margin-left:auto; display:inline-flex; align-items:center; gap:8px; font-weight:600; cursor:pointer; min-height:44px; }
+/* pinned to the bottom-right corner, so it can be switched without scrolling up */
+.rr .reveal { position:fixed; right:24px; bottom:24px; z-index:100; display:inline-flex; align-items:center; gap:8px;
+  font-weight:600; cursor:pointer; min-height:44px; padding:0 16px; background:var(--card); border:1px solid var(--line);
+  border-radius:22px; box-shadow:0 4px 14px rgba(0,0,0,.15); }
 .rr .reveal input { width:20px; height:20px; accent-color:var(--train); }
 .rr details.mid { position:relative; }
 .rr details.mid::before { content:""; position:absolute; left:97px; top:0; bottom:0; width:3px; background:var(--rail); }
