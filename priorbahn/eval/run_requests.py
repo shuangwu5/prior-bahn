@@ -29,7 +29,7 @@ from priorbahn.eval.xgboost_baseline import xgboost_quantiles
 from priorbahn.model import last_known
 from priorbahn.model.context import build_context
 from priorbahn.model.features import with_days_ago
-from priorbahn.model.predict import load_token, predict_delays
+from priorbahn.model.predict import VERSION, load_token, predict_delays
 
 STOPS = "data/processed/stops.parquet"
 MODELS = ["arr", "dep"]
@@ -46,6 +46,13 @@ TABPFN = {
         "last_known": True,
         "size": 5_000,
         "same_train_days": 14,
+    },
+    # the same setup with the faster TabPFN variant
+    "tabpfn_14d_5k_last_known_fast": {
+        "last_known": True,
+        "size": 5_000,
+        "same_train_days": 14,
+        "version": "v3.5-fast",
     },
 }
 BASELINES = {
@@ -109,6 +116,7 @@ def tabpfn(
                 local=local,
                 extra=extra,
                 change_from="last_known_delay" if config["last_known"] else None,
+                version=config.get("version", VERSION),
             )
             parts.append(query.select(KEYS).hstack(pred).with_columns(model=pl.lit(m)))
         return pl.concat(parts)
