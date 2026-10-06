@@ -1,5 +1,5 @@
 """
-Check the transfer chances of priorbahn.risk against what actually happened.
+Check the transfer probabilities of priorbahn.risk against what actually happened.
 
 Uses the router requests of one week and the arrival predictions of each method (TabPFN
 from its cache, see priorbahn.eval.run_requests; XGBoost from its saved scores, since
@@ -7,11 +7,11 @@ predicting again would train its daily models again; the other baselines are com
 The connecting train's departure delay always comes from `carry_forward`, as in the app. A
 transfer held if the connecting train left at least risk.CHANGE_MIN minutes after the
 incoming train arrived. Transfers with a canceled train or an unknown delay are left out,
-since the chance is for trains that run.
+since the probability is for trains that run.
 
-Scores per method: the Brier score (mean squared difference between the chance and the
+Scores per method: the Brier score (mean squared difference between the probability and the
 outcome, 1 for held and 0 for missed; lower is better) and its difference to the first
-method with a 95% range, and per level the share of transfers, the mean chance and how
+method with a 95% range, and per level the share of transfers, the mean probability and how
 often they held.
 
 Run from the repo root:
@@ -103,7 +103,7 @@ def arrival_quantiles(method: str, stops: pl.LazyFrame, arr: pl.DataFrame, split
 
 def scored_transfers(split: str, method: str) -> pl.DataFrame:
     """
-    Every transfer of both running trains with a known outcome, with its chance and
+    Every transfer of both running trains with a known outcome, with its probability and
     level by `method`.
     """
     stops = pl.scan_parquet(STOPS)
@@ -129,7 +129,7 @@ def scored_transfers(split: str, method: str) -> pl.DataFrame:
 
 def summary(scored: pl.DataFrame) -> tuple[pl.DataFrame, pl.DataFrame]:
     """
-    Per method: the Brier score. Per method and level: share of transfers, mean chance
+    Per method: the Brier score. Per method and level: share of transfers, mean probability
     and how often they held.
     """
     brier = (

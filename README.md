@@ -38,11 +38,11 @@ what actually happened.
    itself.
 4. **One call per search.** TabPFN fits on the context and predicts the arrival delay at
    every stop where you leave a train, as three numbers: median (q50), 80% and 95%.
-5. **Transfers.** Each transfer gets a chance that it works (`priorbahn/risk.py`): how
+5. **Transfers.** Each transfer gets a probability that it works (`priorbahn/risk.py`): how
    likely the incoming train arrives at least 2 minutes before the connecting train leaves.
    The connecting train's typical delay comes from its last known delay, or from the same
    train on past days (`carry_forward`, no extra TabPFN call). Canceled trains are not part
-   of the chance. Four levels cut the chance at 97, 80 and 50%, so that green means a
+   of the probability. Four levels cut the probability at 97, 80 and 50%, so that green means a
    transfer that almost never fails.
 
 ## Results
@@ -82,14 +82,14 @@ search day known before "now", which XGBoost does not see.
 How often transfers actually held (2 minutes to change trains, both trains running), by
 the level TabPFN gave them:
 
-| Level | Chance | Share (val / test) | Held, validation | Held, test |
+| Level | Probability | Share (val / test) | Held, validation | Held, test |
 |---|---|---|---|---|
 | Almost sure | 97% or more | 46% / 45% | 99% | 99% |
 | Likely | 80 to 97% | 18% / 19% | 88% | 91% |
 | Uncertain | 50 to 80% | 18% / 20% | 66% | 58% |
 | Unlikely | below 50% | 18% / 16% | 39% | 39% |
 
-Brier score of the chance (the mean squared difference between the chance and the outcome;
+Brier score of the probability (the mean squared difference between the probability and the outcome;
 lower is better), validation / test: TabPFN **0.110 / 0.099**, XGBoost 0.111 / 0.105,
 `carry_forward` 0.114 / 0.112, `train_station` 0.122 / 0.125. In the test week TabPFN is
 clearly better than `carry_forward` and `train_station`. Against XGBoost there is no clear
@@ -138,7 +138,7 @@ uv run --no-sync python -m priorbahn.eval.run_requests validation tabpfn_14d_5k_
   --models arr --workers 4
 uv run --no-sync python -m priorbahn.eval.run_requests validation xgboost --models arr  # ~25 min
 uv run --no-sync python -m priorbahn.eval.run_requests validation report
-uv run --no-sync python -m priorbahn.eval.transfers validation         # transfer chances
+uv run --no-sync python -m priorbahn.eval.transfers validation         # transfer probabilities
 ```
 
 Use `test` instead of `validation` for the test week. The searches in the results were drawn
@@ -168,11 +168,11 @@ when the app is running at `APP_URL` (default `http://localhost:8502`).
 ## Limitations
 
 - Trains are treated as independent, and the connecting train's delay is one number, not a
-  range. On a bad network day, the delays of both trains are linked, so the chances are less
+  range. On a bad network day, the delays of both trains are linked, so the probabilities are less
   reliable then.
 - TabPFN's 80% and 95% levels are a bit optimistic: 74% and 91% of arrivals stayed under
   them. The transfer levels still held about as often as they claim.
-- Canceled trains are not part of the chance. In the evaluation, 6 to 14% of the transfers
+- Canceled trains are not part of the probability. In the evaluation, 6 to 14% of the transfers
   had a canceled train.
 - A missed transfer is not turned into a later arrival. Routes with weak transfers show
   their arrival "if all transfers work".

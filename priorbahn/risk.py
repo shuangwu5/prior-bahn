@@ -1,13 +1,13 @@
 """
 Route risk from predicted delays.
 
-Each transfer gets a chance that it holds, if both trains run (cancellations are left
-out). The chance is read from the incoming train's predicted arrival delay (q50, q80,
+Each transfer gets a probability that it holds, if both trains run (cancellations are left
+out). The probability is read from the incoming train's predicted arrival delay (q50, q80,
 q95) at `wait_min`: the planned transfer time minus CHANGE_MIN, plus the connecting
 train's typical (median) departure delay. The connecting train's delay comes from the
 `carry_forward` baseline, so a search still needs only one TabPFN call.
 
-The four levels are cut points on the chance (LEVELS and CUTS). In the validation and
+The four levels are cut points on the probability (LEVELS and CUTS). In the validation and
 test weeks, the transfers of each level held about as often as its range says.
 
 Routes are ranked by their planned arrival, then by their number of transfers, so the
@@ -20,14 +20,14 @@ import math
 import polars as pl
 
 CHANGE_MIN = 2  # minutes needed to change trains, also used for the actual outcome
-# level: (label, range of the chance)
+# level: (label, range of the probability)
 LEVELS = {
     1: ("almost sure", "97% or more"),
     2: ("likely", "80 to 97%"),
     3: ("uncertain", "50 to 80%"),
     4: ("unlikely", "below 50%"),
 }
-# the lowest chance of each level, chosen so that each color means what people expect:
+# the lowest probability of each level, chosen so that each color means what people expect:
 # green is only for transfers that almost never fail, yellow starts where about 1 in 5
 # fail
 CUTS = {1: 0.97, 2: 0.8, 3: 0.5}
@@ -93,7 +93,7 @@ def probability(x: pl.Expr) -> pl.Expr:
 
 def level(p: pl.Expr) -> pl.Expr:
     """
-    The level (1 to 4, see LEVELS) of a chance; empty without a chance.
+    The level (1 to 4, see LEVELS) of a probability; empty without a probability.
     """
     out = pl.when(p.is_null()).then(None)
     for k, cut in CUTS.items():

@@ -44,7 +44,7 @@ def _top() -> str:
 
 def _probability(p: float | None) -> str:
     """
-    A chance as text, rounded down to 5% so that it stays inside its level's range.
+    A probability as text, rounded down to 5% so that it stays inside its level's range.
     """
     if p is None:
         return "no prediction"
@@ -65,7 +65,7 @@ def _dot(level: int | None, hint: str | None = None) -> str:
 
 
 def _transfer_hint(t: dict) -> str:
-    return f"{_probability(t['probability'])} chance to catch {t['next']}"
+    return f"{_probability(t['probability'])} probability of catching {t['next']}"
 
 
 def _time(t: datetime | None) -> str:

@@ -102,7 +102,7 @@
 .rr:has(#rr-reveal:checked) .xdist > .actual.line { display:block; }
 .rr:has(#rr-reveal:checked) .ticks.actual { visibility:visible; }
 
-/* the chance of a transfer, shown on hover or focus of its dot */
+/* the probability of a transfer, shown on hover or focus of its dot */
 .rr .dot.hint { cursor:help; }
 .rr .head .dot.hint { position:relative; } /* the other dots are positioned already */
 .rr .head .hint-text { left:-4px; transform:none; } /* the head dot sits at the card edge */

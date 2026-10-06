@@ -3,7 +3,7 @@ Streamlit app: plan a train journey and see how reliable each route is.
 
 The user picks a day of the data, two stations and "now" (also the earliest departure).
 The app finds up to N routes, predicts the arrival delay of every leg with TabPFN from
-what was known at "now", gives each transfer a chance and a level (priorbahn/risk.py,
+what was known at "now", gives each transfer a probability and a level (priorbahn/risk.py,
 with the connecting train's typical delay from the `carry_forward` baseline) and sorts the
 routes by planned arrival. A switch on the page reveals what actually happened that day. The cards are drawn by
 app/render.py.
