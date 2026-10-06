@@ -62,16 +62,43 @@ def legs_with(q50: float, q80: float, q95: float) -> pl.DataFrame:
     ("q50", "q80", "q95", "level"),
     [
         # 10 min planned, 2 to change trains: 8 min of room
-        (1, 4, 8, 1),
-        (1, 4, 9, 2),
-        (1, 9, 12, 3),
-        (9, 12, 15, 4),
+        (1, 4, 8, 1),  # 8 is q95: 95%
+        (1, 8, 12, 2),  # 8 is q80: 80%
+        (1, 12, 15, 3),  # 8 is between q50 and q80: about 69%
+        (9, 12, 15, 4),  # 8 is below q50
     ],
 )
 def test_transfer_level_depends_on_the_room_at_each_quantile(
     q50: int, q80: int, q95: int, level: int
 ) -> None:
     assert risk.transfers(legs_with(q50, q80, q95))["level"].to_list() == [level]
+
+
+def test_chance_meets_the_quantiles_and_rises() -> None:
+    df = pl.DataFrame({"q50": [2.0], "q80": [5.0], "q95": [11.0]})
+    x = [-30.0, 0.0, 2.0, 3.5, 5.0, 8.0, 11.0, 20.0, 60.0]
+    out = df.join(pl.DataFrame({"x": x}), how="cross").select(
+        risk.chance(pl.col("x")).alias("chance")
+    )["chance"]
+    assert out.gather([2, 4, 6]).to_list() == pytest.approx([0.5, 0.8, 0.95])
+    assert out.is_sorted() and out.min() > 0 and out.max() < 1
+
+
+def test_a_late_connecting_train_gives_more_time() -> None:
+    legs = legs_with(1, 8, 12)
+    on_time = risk.transfers(legs)
+    dep = pl.DataFrame(
+        {"request_id": [1], "run_id": ["r2"], "stop_num": [3], "q50": [4.0]}
+    )
+    late = risk.transfers(risk.with_departure_delays(legs, dep))
+    assert (on_time["wait_min"][0], late["wait_min"][0]) == (8, 12)
+    assert late["chance"][0] == pytest.approx(0.95)
+
+
+def test_levels_cut_the_chance() -> None:
+    chance = pl.Series("c", [0.95, 0.9, 0.8, 0.75, 0.6, 0.3, None])
+    out = pl.DataFrame(chance).select(risk.level(pl.col("c")).alias("level"))
+    assert out["level"].to_list() == [1, 1, 2, 2, 3, 4, None]
 
 
 def test_routes_rank_by_arrival_then_transfers() -> None:

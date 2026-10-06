@@ -1,33 +1,33 @@
 """
-Route risk from predicted arrival delays.
+Route risk from predicted delays.
 
-Each transfer gets one of four levels. The question is whether the transfer still leaves
-CHANGE_MIN minutes to change trains when the incoming train is as late as its predicted
-q95, q80 or q50 delay, with the connecting train on time:
+Each transfer gets a chance that it holds, if both trains run (cancellations are left
+out). The chance is read from the incoming train's predicted arrival delay (q50, q80,
+q95) at `wait_min`: the planned transfer time minus CHANGE_MIN, plus the connecting
+train's typical (median) departure delay. The connecting train's delay comes from the
+`carry_forward` baseline, so a search still needs only one TabPFN call.
 
-1. very likely: still works at q95 (over 90% of such transfers held in the validation
-   and test weeks)
-2. likely: works at q80, not at q95 (80 to 90%)
-3. uncertain: works at q50, not at q80 (50 to 80%)
-4. unlikely: fails even at q50 (below 50%)
-
-The connecting train is taken as on time because trains almost never leave early (0.14%
-of departures in the validation week), so a late departure only helps.
+The four levels are cut points on the chance (LEVELS and CUTS). In the validation and
+test weeks, the transfers of each level held about as often as its range says.
 
 Routes are ranked by the arrival time they reach with 80% certainty (planned arrival plus
 the q80 arrival delay of the last leg), then by their number of transfers. The weakest
 transfer level is shown next to each route, but does not change the order.
 """
 
+import math
+
 import polars as pl
 
 CHANGE_MIN = 2  # minutes needed to change trains, also used for the actual outcome
+# level: (label, range of the chance)
 LEVELS = {
     1: ("very likely", "over 90%"),
-    2: ("likely", "80 to 90%"),
-    3: ("uncertain", "50 to 80%"),
+    2: ("likely", "75 to 90%"),
+    3: ("uncertain", "50 to 75%"),
     4: ("unlikely", "below 50%"),
 }
+CUTS = {1: 0.9, 2: 0.75, 3: 0.5}  # the lowest chance of each level
 ROUTE = ["request_id", "route"]
 
 
@@ -51,12 +51,64 @@ def with_arrival_delays(legs: pl.DataFrame, pred: pl.DataFrame) -> pl.DataFrame:
     )
 
 
+def with_departure_delays(legs: pl.DataFrame, pred: pl.DataFrame) -> pl.DataFrame:
+    """
+    `legs` with `dep_q50`, the typical departure delay at each leg's boarding stop.
+    `pred` has request_id, run_id, stop_num and q50.
+    """
+    return legs.join(
+        pred.select(
+            "request_id",
+            "run_id",
+            pl.col("stop_num").alias("from_stop_num"),
+            pl.col("q50").alias("dep_q50"),
+        ),
+        on=["request_id", "run_id", "from_stop_num"],
+        how="left",
+    )
+
+
+def chance(x: pl.Expr) -> pl.Expr:
+    """
+    Share of the predicted arrival delay at or below `x` minutes, from q50, q80 and q95:
+    straight lines between them, and exponential tails below q50 and above q95 (with
+    the slopes of the parts next to them). Gaps under half a minute are widened.
+    """
+    q50 = pl.col("q50")
+    q80 = pl.max_horizontal(pl.col("q80"), q50 + 0.5)
+    q95 = pl.max_horizontal(pl.col("q95"), q80 + 0.5)
+    return (
+        pl.when(x < q50)
+        .then(0.5 * ((x - q50) / ((q80 - q50) / math.log(2.5))).exp())
+        .when(x < q80)
+        .then(0.5 + 0.3 * (x - q50) / (q80 - q50))
+        .when(x < q95)
+        .then(0.8 + 0.15 * (x - q80) / (q95 - q80))
+        .otherwise(1 - 0.05 * (-(x - q95) / ((q95 - q80) / math.log(4))).exp())
+    )
+
+
+def level(p: pl.Expr) -> pl.Expr:
+    """
+    The level (1 to 4, see LEVELS) of a chance; empty without a chance.
+    """
+    out = pl.when(p.is_null()).then(None)
+    for k, cut in CUTS.items():
+        out = out.when(p >= cut).then(k)
+    return out.otherwise(4).cast(pl.Int8)
+
+
 def transfers(legs: pl.DataFrame) -> pl.DataFrame:
     """
     One row per transfer, between leg `leg` and the next leg of the same route, with
-    `room_min` (planned transfer time minus CHANGE_MIN) and `level` (1 to 4, see LEVELS;
-    empty without a prediction). Needs the columns of `with_arrival_delays`.
+    `room_min` (planned transfer time minus CHANGE_MIN), `wait_min` (the room plus the
+    connecting train's typical departure delay), `chance` and `level` (1 to 4, see
+    LEVELS; both empty without a prediction). Needs the columns of
+    `with_arrival_delays`, and `dep_q50` of `with_departure_delays` (taken as 0 where
+    missing).
     """
+    if "dep_q50" not in legs.columns:
+        legs = legs.with_columns(dep_q50=pl.lit(None, pl.Float64))
     nxt = legs.select(
         *ROUTE,
         (pl.col("leg") - 1).alias("leg"),
@@ -64,23 +116,17 @@ def transfers(legs: pl.DataFrame) -> pl.DataFrame:
         pl.col("from_station").alias("station"),
         pl.col("run_id").alias("next_run_id"),
         pl.col("from_stop_num").alias("next_stop_num"),
+        pl.col("dep_q50").alias("next_dep_q50"),
     )
     room = (pl.col("next_dep") - pl.col("arr")).dt.total_minutes() - CHANGE_MIN
-    level = (
-        pl.when(pl.col("q95").is_null())
-        .then(None)
-        .when(pl.col("room_min") >= pl.col("q95"))
-        .then(1)
-        .when(pl.col("room_min") >= pl.col("q80"))
-        .then(2)
-        .when(pl.col("room_min") >= pl.col("q50"))
-        .then(3)
-        .otherwise(4)
-    )
+    # trains almost never leave early (0.14% of departures), so a negative median is 0
+    wait = pl.col("room_min") + pl.col("next_dep_q50").fill_null(0).clip(lower_bound=0)
     return (
         legs.join(nxt, on=[*ROUTE, "leg"])
         .with_columns(room_min=room)
-        .with_columns(level=level.cast(pl.Int8))
+        .with_columns(wait_min=wait)
+        .with_columns(chance=chance(pl.col("wait_min")))
+        .with_columns(level=level(pl.col("chance")))
     )
 
 
@@ -89,7 +135,7 @@ def routes(legs: pl.DataFrame) -> pl.DataFrame:
     One row per route: number of transfers, the weakest transfer level (1 for a direct
     route), the planned arrival and the arrival reached with 50%, 80% and 95% certainty,
     ranked within each request (`rank` 1 is the best). Needs the columns of
-    `with_arrival_delays`.
+    `transfers`.
     """
     weakest = (
         transfers(legs)
