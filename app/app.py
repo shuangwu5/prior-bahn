@@ -68,6 +68,20 @@ def get_timetable(day: date) -> rc.Timetable:
     return rc.load_timetable(day)
 
 
+@st.cache_data(show_spinner=False)
+def all_stations() -> list[str]:
+    """
+    The stations of all data days. One list for every day, so the station boxes keep
+    their choice when the date changes (new options would reset them).
+    """
+    return sorted(
+        pl.scan_parquet(STOPS)
+        .filter(pl.col("run_day").is_between(*DATA_DAYS))
+        .select(pl.col("station").unique())
+        .collect()["station"]
+    )
+
+
 def short_label(label: str) -> str:
     """
     The line ("S3") if the label has one ("S 38318 (S3)"), else the train ("ECE 8").
@@ -256,7 +270,7 @@ with main:
             min_value=DATA_DAYS[0],
             max_value=DATA_DAYS[1],
         )
-        stations = get_timetable(day).stations
+        stations = all_stations()
         src_name = col_from.selectbox(
             "From", stations, index=stations.index("Freiburg (Breisgau) Hbf")
         )
