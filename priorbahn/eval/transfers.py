@@ -138,7 +138,7 @@ def summary(scored: pl.DataFrame) -> tuple[pl.DataFrame, pl.DataFrame]:
         scored.group_by("method")
         .agg(
             pl.len().alias("transfers"),
-            ((pl.col("chance") - pl.col("held").cast(pl.Float64)) ** 2)
+            ((pl.col("probability") - pl.col("held").cast(pl.Float64)) ** 2)
             .mean()
             .alias("brier"),
         )
@@ -148,7 +148,7 @@ def summary(scored: pl.DataFrame) -> tuple[pl.DataFrame, pl.DataFrame]:
         scored.group_by("method", "level")
         .agg(
             pl.len().alias("transfers"),
-            pl.col("chance").mean(),
+            pl.col("probability").mean(),
             pl.col("held").mean(),
         )
         .with_columns(
@@ -166,7 +166,7 @@ def differences(scored: pl.DataFrame, reference: str, n: int = 2000) -> pl.DataF
     includes 0 means no clear difference.
     """
     wide = scored.with_columns(
-        b=(pl.col("chance") - pl.col("held").cast(pl.Float64)) ** 2
+        b=(pl.col("probability") - pl.col("held").cast(pl.Float64)) ** 2
     ).pivot(on="method", index=["request_id", "route", "leg"], values="b")
     methods = [m for m in wide.columns[3:] if m != reference]
     per_request = wide.group_by("request_id").agg(

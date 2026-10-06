@@ -19,8 +19,8 @@ def _top() -> str:
     """
     levels = "".join(
         f'<span class="lv"><i class="dot l{k}"></i><b>{label.capitalize()}</b>: '
-        f"{chance}</span>"
-        for k, (label, chance) in LEVELS.items()
+        f"{prob_range}</span>"
+        for k, (label, prob_range) in LEVELS.items()
     )
     tip = (
         "<b>How likely you catch your next train</b>"
@@ -46,7 +46,7 @@ def _top() -> str:
     )
 
 
-def _chance(p: float | None) -> str:
+def _probability(p: float | None) -> str:
     """
     A chance as text, rounded down to 5% so that it stays inside its level's range.
     """
@@ -72,7 +72,7 @@ def _dot(level: int | None, hint: str | None = None) -> str:
 
 
 def _transfer_hint(t: dict) -> str:
-    return f"{_chance(t['chance'])} chance to catch {t['next']}"
+    return f"{_probability(t['probability'])} chance to catch {t['next']}"
 
 
 def _time(t: datetime | None) -> str:
@@ -317,16 +317,16 @@ def card(route: dict) -> str:
         (route["planned_arrival"] - route["planned_departure"]).total_seconds() // 60
     )
     transfers = "Direct" if n == 0 else f"{n} transfer" + ("s" if n > 1 else "")
-    chances = [
-        leg["transfer_after"]["chance"]
+    probabilities = [
+        leg["transfer_after"]["probability"]
         for leg in legs
         if leg["transfer_after"] is not None
-        and leg["transfer_after"]["chance"] is not None
+        and leg["transfer_after"]["probability"] is not None
     ]
     if n == 0:
         head_hint = "Direct, no transfer to miss"
-    elif chances:
-        head_hint = f"Weakest transfer: {_chance(min(chances))}"
+    elif probabilities:
+        head_hint = f"Weakest transfer: {_probability(min(probabilities))}"
     else:
         head_hint = None
     q50 = legs[-1]["q50"]

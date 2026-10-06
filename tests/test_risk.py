@@ -74,12 +74,12 @@ def test_transfer_level_depends_on_the_room_at_each_quantile(
     assert risk.transfers(legs_with(q50, q80, q95))["level"].to_list() == [level]
 
 
-def test_chance_meets_the_quantiles_and_rises() -> None:
+def test_probability_meets_the_quantiles_and_rises() -> None:
     df = pl.DataFrame({"q50": [2.0], "q80": [5.0], "q95": [11.0]})
     x = [-30.0, 0.0, 2.0, 3.5, 5.0, 8.0, 11.0, 20.0, 60.0]
     out = df.join(pl.DataFrame({"x": x}), how="cross").select(
-        risk.chance(pl.col("x")).alias("chance")
-    )["chance"]
+        risk.probability(pl.col("x")).alias("probability")
+    )["probability"]
     assert out.gather([2, 4, 6]).to_list() == pytest.approx([0.5, 0.8, 0.95])
     assert out.is_sorted() and out.min() > 0 and out.max() < 1
 
@@ -92,12 +92,12 @@ def test_a_late_connecting_train_gives_more_time() -> None:
     )
     late = risk.transfers(risk.with_departure_delays(legs, dep))
     assert (on_time["wait_min"][0], late["wait_min"][0]) == (8, 12)
-    assert late["chance"][0] == pytest.approx(0.95)
+    assert late["probability"][0] == pytest.approx(0.95)
 
 
-def test_levels_cut_the_chance() -> None:
-    chance = pl.Series("c", [0.99, 0.97, 0.9, 0.8, 0.79, 0.5, 0.3, None])
-    out = pl.DataFrame(chance).select(risk.level(pl.col("c")).alias("level"))
+def test_levels_cut_the_probability() -> None:
+    probability = pl.Series("c", [0.99, 0.97, 0.9, 0.8, 0.79, 0.5, 0.3, None])
+    out = pl.DataFrame(probability).select(risk.level(pl.col("c")).alias("level"))
     assert out["level"].to_list() == [1, 1, 2, 2, 3, 3, 4, None]
 
 

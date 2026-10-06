@@ -71,7 +71,7 @@ def with_departure_delays(legs: pl.DataFrame, pred: pl.DataFrame) -> pl.DataFram
     )
 
 
-def chance(x: pl.Expr) -> pl.Expr:
+def probability(x: pl.Expr) -> pl.Expr:
     """
     Share of the predicted arrival delay at or below `x` minutes, from q50, q80 and q95:
     straight lines between them, and exponential tails below q50 and above q95 (with
@@ -105,7 +105,7 @@ def transfers(legs: pl.DataFrame) -> pl.DataFrame:
     """
     One row per transfer, between leg `leg` and the next leg of the same route, with
     `room_min` (planned transfer time minus CHANGE_MIN), `wait_min` (the room plus the
-    connecting train's typical departure delay), `chance` and `level` (1 to 4, see
+    connecting train's typical departure delay), `probability` and `level` (1 to 4, see
     LEVELS; both empty without a prediction). Needs the columns of
     `with_arrival_delays`, and `dep_q50` of `with_departure_delays` (taken as 0 where
     missing).
@@ -128,8 +128,8 @@ def transfers(legs: pl.DataFrame) -> pl.DataFrame:
         legs.join(nxt, on=[*ROUTE, "leg"])
         .with_columns(room_min=room)
         .with_columns(wait_min=wait)
-        .with_columns(chance=chance(pl.col("wait_min")))
-        .with_columns(level=level(pl.col("chance")))
+        .with_columns(probability=probability(pl.col("wait_min")))
+        .with_columns(level=level(pl.col("probability")))
     )
 
 
