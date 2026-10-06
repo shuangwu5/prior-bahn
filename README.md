@@ -40,8 +40,10 @@ what actually happened.
    every stop where you leave a train, as three numbers: median (q50), 80% and 95%.
 5. **Transfers.** Each transfer gets a probability that it works (`priorbahn/risk.py`): how
    likely the incoming train arrives at least 2 minutes before the connecting train leaves.
-   The connecting train's typical delay comes from its last known delay, or from the same
-   train on past days (`carry_forward`, no extra TabPFN call). Canceled trains are not part
+   The connecting train's departure delay does not come from TabPFN, so a search still
+   needs only one call. If the train is already running, the app uses its last known delay.
+   If not, it uses the median delay of the same train at the same station on past days.
+   Canceled trains are not part
    of the probability. Four levels cut the probability at 97, 80 and 50%, so that green means a
    transfer that almost never fails.
 
@@ -61,8 +63,20 @@ better):
 | XGBoost, one model per day (`xgboost`) | 2.17 | 2.70 | 1.52 |
 | **TabPFN-3.5** | **2.13** | **2.65** | **1.49** |
 
-All methods use the same history: the 14 days before the search. For a train that has not
-started, `carry_forward` has no delay to carry and uses `train_station`. XGBoost is trained
+The three simple baselines predict the same three numbers (q50, q80, q95) from
+past delays of the 14 days before the search:
+
+- `global`: the delay quantiles of all past rows. Every train gets the same prediction.
+- `train_station`: the delay quantiles of the same train (type and number, for example
+  "ICE 507") at the same station on past days. If there are fewer than 10 past rows, it
+  uses all trains at that station in the same planned hour. If that also has fewer than
+  10 rows, it uses `global`.
+- `carry_forward`: "the delay stays the same". The median is the train's delay at the last
+  stop before "now". The 80% and 95% values add the usual spread from `train_station`
+  (its q80 and q95 minus its q50). A train that has not started has no delay to carry, so
+  it gets the `train_station` values.
+
+All methods use the same history: the 14 days before the search. XGBoost is trained
 once per day on that history (about 2.4 million rows, at most 200,000 per train type, about
 3 minutes) with the same features as TabPFN, including the train's last known delay.
 TabPFN gets 5,000 rows per search and no training. Its rows also include trains of the
