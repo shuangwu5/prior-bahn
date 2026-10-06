@@ -24,7 +24,7 @@ CHANGE_MIN = 2  # minutes needed to change trains, also used for the actual outc
 LEVELS = {
     1: ("almost sure", "97% or more"),
     2: ("likely", "80 to 97%"),
-    3: ("risky", "50 to 80%"),
+    3: ("uncertain", "50 to 80%"),
     4: ("unlikely", "below 50%"),
 }
 # the lowest chance of each level, chosen so that each color means what people expect:

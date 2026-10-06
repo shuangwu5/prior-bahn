@@ -86,7 +86,7 @@ the level TabPFN gave them:
 |---|---|---|---|---|
 | Almost sure | 97% or more | 46% / 45% | 99% | 99% |
 | Likely | 80 to 97% | 18% / 19% | 88% | 91% |
-| Risky | 50 to 80% | 18% / 20% | 66% | 58% |
+| Uncertain | 50 to 80% | 18% / 20% | 66% | 58% |
 | Unlikely | below 50% | 18% / 16% | 39% | 39% |
 
 Brier score of the chance (the mean squared difference between the chance and the outcome;
