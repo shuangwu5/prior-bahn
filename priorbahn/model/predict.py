@@ -16,7 +16,7 @@ if TYPE_CHECKING:
     import tabpfn
     import tabpfn_client
 
-VERSION = "v3.5"  # "v3.5-fast" is the faster variant (API only)
+VERSION = "v3.5"  # "v3.5-fast" is the faster variant
 QUANTILES = [0.5, 0.8, 0.95]
 ROOT = Path(__file__).resolve().parents[2]
 
