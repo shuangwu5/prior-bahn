@@ -51,17 +51,9 @@ what actually happened.
 
 Evaluated on 198 real searches in the validation week (September 17 to 23) and run once,
 without tuning, on 191 searches in the test week (September 24 to 30). "Now" is the
-departure time of each search. Scores are the pinball loss of the arrival delay (lower is
-better):
+departure time of each search.
 
-| Test week (1,118 arrivals) | All | Train not started | Train already running |
-|---|---|---|---|
-| Same delays as all trains (`global`) | 3.39 | 3.63 | 3.10 |
-| This train at this station, past days (`train_station`) | 2.48 | 2.72 | 2.17 |
-| The delay stays the same (`carry_forward`) | 2.27 | 2.72 | 1.71 |
-| TabPFN-3.5 Fast | 2.23 | 2.77 | 1.56 |
-| XGBoost, one model per day (`xgboost`) | 2.17 | 2.70 | 1.52 |
-| **TabPFN-3.5** | **2.13** | **2.65** | **1.49** |
+### Methods
 
 The three simple baselines predict the same three numbers (q50, q80, q95) from
 past delays of the 14 days before the search:
@@ -82,16 +74,20 @@ once per day on that history (about 2.4 million rows, at most 200,000 per train 
 TabPFN gets 5,000 rows per search and no training. Its rows also include trains of the
 search day known before "now", which XGBoost does not see.
 
-- **Trains already running:** TabPFN beats "the delay stays the same" by 0.21 (95% range
-  0.01 to 0.44), the case that matters most for "will I make my connection?". It also did
-  in the validation week (1.55 against 2.00).
-- **Against XGBoost:** about level. In the validation week TabPFN was better on running
-  trains (1.55 against 1.74, 95% range of the difference −0.39 to −0.02), in the test week
-  the difference is small and not clear (−0.03, range −0.17 to +0.13). XGBoost's quantiles
-  are the best calibrated: 51%, 79% and 96% of test arrivals stayed under its 50%, 80% and
-  95% levels.
-- **Trains not started yet:** no clear difference to the train's own history (test −0.07,
-  95% range −0.32 to +0.18; validation +0.08).
+### Arrival delays
+
+Scores are the pinball loss of the arrival delay (lower is better):
+
+| Test week (1,118 arrivals) | All | Train not started | Train already running |
+|---|---|---|---|
+| Same delays as all trains (`global`) | 3.39 | 3.63 | 3.10 |
+| This train at this station, past days (`train_station`) | 2.48 | 2.72 | 2.17 |
+| The delay stays the same (`carry_forward`) | 2.27 | 2.72 | 1.71 |
+| TabPFN-3.5 Fast | 2.23 | 2.77 | 1.56 |
+| XGBoost, one model per day (`xgboost`) | 2.17 | 2.70 | 1.52 |
+| **TabPFN-3.5** | **2.13** | **2.65** | **1.49** |
+
+### Transfers
 
 How often transfers actually held (2 minutes to change trains, both trains running), by
 the level TabPFN gave them:
@@ -103,12 +99,17 @@ the level TabPFN gave them:
 | Uncertain | 50 to 80% | 18% / 20% | 66% | 58% |
 | Unlikely | below 50% | 18% / 16% | 39% | 39% |
 
-Brier score of the probability (the mean squared difference between the probability and the outcome;
-lower is better), validation / test: TabPFN **0.110 / 0.099**, XGBoost 0.111 / 0.105,
-`carry_forward` 0.114 / 0.112, `train_station` 0.122 / 0.125. In the test week TabPFN is
-clearly better than `carry_forward` and `train_station`. Against XGBoost there is no clear
-difference in either week. Details and all experiments: `data/eval/README.md` (made by the
-evaluation).
+Brier score of the probability (the mean squared difference between the probability and the
+outcome; lower is better):
+
+| Method | Validation | Test |
+|---|---|---|
+| `global` | 0.160 | 0.161 |
+| `train_station` | 0.122 | 0.125 |
+| `carry_forward` | 0.114 | 0.112 |
+| `xgboost` | 0.111 | 0.105 |
+| TabPFN-3.5 Fast | 0.110 | 0.102 |
+| **TabPFN-3.5** | **0.110** | **0.099** |
 
 ## Run it
 
@@ -133,13 +134,7 @@ The app uses the Prior Labs API (costs credits). Put your key in `.env` as
 `uv run --no-sync streamlit run app/app.py -- --backend local`. The first local search
 downloads the model weights.
 
-In the app, pick a day between September 15 and 30, two stations and "now". Each
-route shows its planned times with the typical (median) arrival delay, a timeline with a
-colored dot per transfer, and the stops with their planned times. In the stop list, a curve
-shows the predicted arrival delay at each transfer and at the destination, with the median,
-80% and 95% marked. Before a transfer it is red where the train is too late to change.
-"Show what actually happened" reveals the real delays, marks them on the curves, and shows
-whether each transfer held.
+In the app, pick a day between September 15 and 30, two stations and "now". The demo recording at the top shows the rest.
 
 ### Evaluation
 
@@ -193,7 +188,6 @@ when the app is running at `APP_URL` (default `http://localhost:8502`).
 - The router is this project's own, built from the dataset's timetable. It does not use DB's
   public API, so its routes differ from DB Navigator and can include routes that are not the
   best ones.
-- The data covers one month (September 2026), and the test week is one week.
 
 ## Related work
 
