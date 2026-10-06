@@ -3,7 +3,8 @@ Streamlit app: plan a train journey and see how reliable each route is.
 
 The user picks a day of the data, two stations and "now" (also the earliest departure).
 The app finds up to N routes, predicts the arrival delay of every leg with TabPFN from
-what was known at "now", gives each transfer a level (priorbahn/risk.py) and ranks the
+what was known at "now", gives each transfer a chance and a level (priorbahn/risk.py,
+with the connecting train's typical delay from the `carry_forward` baseline) and ranks the
 routes. A switch on the page reveals what actually happened that day. The cards are drawn by
 app/render.py.
 
@@ -25,6 +26,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import render
 
 from priorbahn import risk
+from priorbahn.eval import baselines
 from priorbahn.eval import requests as rq
 from priorbahn.model.predict import load_token
 from priorbahn.model.request import predict_arrivals
@@ -103,7 +105,9 @@ def plan(
         f"{len(legs)} legs, prediction {seconds:.1f}s",
         flush=True,
     )
-    legs = risk.with_arrival_delays(legs, pred)
+    legs = risk.with_departure_delays(
+        risk.with_arrival_delays(legs, pred), departure_delays(stops, legs, now)
+    )
     transfers = risk.transfers(legs)
     summary = risk.routes(legs)
 
@@ -155,7 +159,7 @@ def plan(
             route_legs[t["leg"]]["transfer_after"] = {
                 "level": t["level"],
                 "planned_min": int((t["next_dep"] - t["arr"]).total_seconds() // 60),
-                "room_min": t["room_min"],
+                "wait_min": t["wait_min"],
                 "held": transfer_held(t["arr"], incoming, t["next_dep"], outgoing),
             }
         out.append(
@@ -175,6 +179,21 @@ def plan(
             }
         )
     return out, seconds
+
+
+def departure_delays(
+    stops: pl.LazyFrame, legs: pl.DataFrame, now: datetime
+) -> pl.DataFrame:
+    """
+    The typical departure delay (q50) at each leg's boarding stop, by `carry_forward`:
+    the delay where the train was last seen before now, or the same train at the same
+    station on past days. No TabPFN call.
+    """
+    request = pl.DataFrame({"request_id": [0], "depart": [now]})
+    dep = rq.request_rows(stops, request, legs).filter(pl.col("model") == "dep")
+    return dep.select("request_id", "run_id", "stop_num").hstack(
+        baselines.carry_forward(stops, dep, "dep").select("q50")
+    )
 
 
 def transfer_held(

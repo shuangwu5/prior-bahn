@@ -17,22 +17,17 @@ def _top() -> str:
     The legend of the transfer levels and the switch for what actually happened.
     Hovering or tapping the info icon explains the levels.
     """
-    sure = {
-        1: "95% sure or more",
-        2: "80 to 95% sure",
-        3: "50 to 80% sure",
-        4: "less than 50% sure",
-    }
     levels = "".join(
         f'<span class="lv"><i class="dot l{k}"></i><b>{label.capitalize()}</b>: '
-        f"{sure[k]}</span>"
-        for k, (label, _) in LEVELS.items()
+        f"{chance}</span>"
+        for k, (label, chance) in LEVELS.items()
     )
     tip = (
         "<b>How sure TabPFN is that you catch your next train</b>"
         f"{levels}"
         f'<span class="lv">We assume you need at least {CHANGE_MIN} minutes to change '
-        "trains, and that the next train leaves on time.</span>"
+        "trains, and that the next train leaves with its typical delay. Canceled trains "
+        "are not included.</span>"
         '<span class="lv">The big dot on a card shows its weakest transfer.</span>'
     )
     lead = (
@@ -108,8 +103,9 @@ def _at(pts: list[tuple[float, float]], x: float) -> float:
 def _curve(leg: dict, room: float | None, actual: int | None) -> str:
     """
     The predicted arrival delay of `leg` as a curve, with the 50%, 80% and 95%
-    quantiles marked. Before a transfer, `room` is its time left to change: the curve is
-    green where the transfer still works and red where it fails. At the destination
+    quantiles marked. Before a transfer, `room` is its time left to change if the next
+    train leaves with its typical delay: the curve is green where the transfer still
+    works and red where it fails. At the destination
     (`room` None) it has one color. `actual` (the real delay, None if unknown) is marked
     only when the switch is on. Drawn with clip-path, because st.html removes SVG.
     """
@@ -263,7 +259,7 @@ def _leg(leg: dict) -> str:
                 if t["held"]
                 else '<span class="missed">✗ missed</span>'
             )
-        curve = _curve(leg, t["room_min"], actual) if has_curve else ""
+        curve = _curve(leg, t["wait_min"], actual) if has_curve else ""
         html += (
             f'<div class="xfer"><div class="t"></div><div class="rail">'
             f'<i class="dot l{t["level"] or 0}"></i></div>'
