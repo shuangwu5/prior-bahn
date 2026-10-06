@@ -181,3 +181,8 @@ If you are interested in this topic, have a look at it too.
 ## Data
 
 [piebro/deutsche-bahn-data](https://huggingface.co/datasets/piebro/deutsche-bahn-data), CC BY 4.0.
+
+## License
+
+The code is released under the [Apache License, Version 2.0](LICENSE).
+The data is not part of this license and keeps its own license (CC BY 4.0, see above).
