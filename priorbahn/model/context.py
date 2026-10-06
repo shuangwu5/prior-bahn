@@ -80,10 +80,7 @@ def known_at(stops: pl.LazyFrame, now: datetime) -> pl.LazyFrame:
     """
     return (
         stops.filter(pl.col("run_day") < now)
-        .with_columns(
-            pl.when(actual_time(e) < now).then(f"{e}_delay").alias(f"{e}_delay")
-            for e in ("arr", "dep")
-        )
+        .with_columns(pl.when(actual_time(e) < now).then(f"{e}_delay").alias(f"{e}_delay") for e in ("arr", "dep"))
         .filter(pl.col("arr_delay").is_not_null() | pl.col("dep_delay").is_not_null())
     )
 
@@ -107,22 +104,14 @@ def build_context(
     stops they passed before `now`.
     """
     # filter for the second group, see the module docstring
-    others = (
-        pl.col("train_type") != "S"
-        if skip_s_bahn and not (query["train_type"] == "S").any()
-        else pl.lit(True)
-    )
+    others = pl.col("train_type") != "S" if skip_s_bahn and not (query["train_type"] == "S").any() else pl.lit(True)
     types = sorted(query["train_type"].unique().drop_nulls())
     of_query_runs = pl.col("run_id").is_in(query["run_id"].unique().implode())
 
     def since(days: int) -> pl.Expr:
-        return pl.col("run_day") >= datetime.combine(
-            now.date() - timedelta(days=days), time()
-        )
+        return pl.col("run_day") >= datetime.combine(now.date() - timedelta(days=days), time())
 
-    known = known_at(stops.filter(since(max(days_back, same_train_days))), now).pipe(
-        with_minute_of_day
-    )
+    known = known_at(stops.filter(since(max(days_back, same_train_days))), now).pipe(with_minute_of_day)
 
     # one collect for the first two groups: only the query's stations and trains are read
     near = known.filter(
@@ -130,9 +119,7 @@ def build_context(
         | pl.col("train_key").is_in(query["train_key"].unique().implode())
     ).collect()
     # the query's own runs today, at the stops they passed before now (not the query rows)
-    own = near.filter(of_query_runs).join(
-        query.select("run_id", "stop_num"), on=["run_id", "stop_num"], how="anti"
-    )
+    own = near.filter(of_query_runs).join(query.select("run_id", "stop_num"), on=["run_id", "stop_num"], how="anti")
     others_near = near.filter(~of_query_runs)
 
     same_train = pl.concat(
@@ -167,9 +154,7 @@ def build_context(
         .join(pl.DataFrame({"back": range(1, WINDOW_MIN + 1)}), how="cross")
         .select(
             "station",
-            ((pl.col("minute_of_day") - pl.col("back")) % 1440)
-            .cast(pl.Int16)
-            .alias("minute_of_day"),
+            ((pl.col("minute_of_day") - pl.col("back")) % 1440).cast(pl.Int16).alias("minute_of_day"),
         )
         .unique()
     )
@@ -200,9 +185,7 @@ def build_context(
     return pl.concat([first, general], how="vertical").drop("minute_of_day")
 
 
-def _general_sample(
-    stops: pl.LazyFrame, known: pl.LazyFrame, types: list[str], n: int, seed: int
-) -> pl.DataFrame:
+def _general_sample(stops: pl.LazyFrame, known: pl.LazyFrame, types: list[str], n: int, seed: int) -> pl.DataFrame:
     """
     `n` rows from all stations, split evenly over the train types of the query.
 
@@ -218,10 +201,7 @@ def _general_sample(
     # runs of a type with fewer rows). `stops` holds only the days of the context window.
     counts = stops.filter(of_types).group_by("train_type").len().collect()
     target = max(GENERAL_POOL_ROWS_PER_TYPE, 2 * math.ceil(n / len(types)))
-    per_mille = {
-        t: min(1000, max(1, math.ceil(1000 * target / n_rows)))
-        for t, n_rows in counts.rows()
-    }
+    per_mille = {t: min(1000, max(1, math.ceil(1000 * target / n_rows))) for t, n_rows in counts.rows()}
     # hash() turns each run_id into a fixed integer, so "hash % 1000 < per_mille" keeps the
     # same runs on every call and drops the rest while scanning. Whole runs are kept or
     # dropped, and the kept runs are spread over all days (no head(), the file is day-sorted).
@@ -229,16 +209,12 @@ def _general_sample(
     pool = known.filter(
         of_types,
         pl.col("run_id").hash(seed) % 1000
-        < pl.col("train_type").replace_strict(
-            per_mille, default=0, return_dtype=pl.UInt64
-        ),
+        < pl.col("train_type").replace_strict(per_mille, default=0, return_dtype=pl.UInt64),
     ).collect()
     return _split_by_type(pool, types, n, seed)
 
 
-def _split_by_type(
-    pool: pl.DataFrame, types: list[str], n: int, seed: int
-) -> pl.DataFrame:
+def _split_by_type(pool: pl.DataFrame, types: list[str], n: int, seed: int) -> pl.DataFrame:
     """
     `n` rows of `pool`, the same number for each of `types`.
 
@@ -251,10 +227,7 @@ def _split_by_type(
     quota, extra = divmod(n, len(types)) if types else (0, 0)
     picked = pl.concat(
         [pool.head(0)]
-        + [
-            _sample(pool.filter(pl.col("train_type") == t), quota + (i < extra), seed)
-            for i, t in enumerate(types)
-        ],
+        + [_sample(pool.filter(pl.col("train_type") == t), quota + (i < extra), seed) for i, t in enumerate(types)],
         how="vertical",
     )
     rest = pool.join(picked.select("_row"), on="_row", how="anti")

@@ -43,9 +43,7 @@ TABPFN = {
 METHODS = ["global", "train_station", *TABPFN]
 
 
-def tabpfn(
-    stops: pl.LazyFrame, rows: pl.DataFrame, split: str, variant: str
-) -> dict[str, pl.DataFrame]:
+def tabpfn(stops: pl.LazyFrame, rows: pl.DataFrame, split: str, variant: str) -> dict[str, pl.DataFrame]:
     config = TABPFN[variant]
     extra = ("days_ago",) if config["days_ago"] else ()
     # one cache file per variant and split, rewritten after every run
@@ -72,9 +70,7 @@ def tabpfn(
         pred = pl.concat(
             [run.select("run_id", "stop_num")]
             + [
-                predict_delays(context, query, m, local=True, extra=extra).rename(
-                    lambda c, m=m: f"{m}_{c}"
-                )
+                predict_delays(context, query, m, local=True, extra=extra).rename(lambda c, m=m: f"{m}_{c}")
                 for m in MODELS
             ],
             how="horizontal",
@@ -85,23 +81,15 @@ def tabpfn(
         cache.write_parquet(tmp)
         tmp.replace(path)
         print(
-            f"{variant} run {i + 1}/{len(runs)}: {len(run)} rows, "
-            f"{len(context)} context rows, {time.time() - t:.0f}s",
+            f"{variant} run {i + 1}/{len(runs)}: {len(run)} rows, {len(context)} context rows, {time.time() - t:.0f}s",
             flush=True,
         )
 
-    pred = rows.select("run_id", "stop_num").join(
-        cache, on=["run_id", "stop_num"], how="left", maintain_order="left"
-    )
-    return {
-        m: pred.select(pl.col(f"^{m}_.*$").name.map(lambda c: c.split("_", 1)[1]))
-        for m in MODELS
-    }
+    pred = rows.select("run_id", "stop_num").join(cache, on=["run_id", "stop_num"], how="left", maintain_order="left")
+    return {m: pred.select(pl.col(f"^{m}_.*$").name.map(lambda c: c.split("_", 1)[1])) for m in MODELS}
 
 
-def predict(
-    method: str, stops: pl.LazyFrame, rows: pl.DataFrame, split: str
-) -> dict[str, pl.DataFrame]:
+def predict(method: str, stops: pl.LazyFrame, rows: pl.DataFrame, split: str) -> dict[str, pl.DataFrame]:
     """
     Predictions of `method` for both models, aligned with `rows`.
     """
@@ -114,28 +102,18 @@ def predict(
     return {m: fn(stops, rows, m) for m in MODELS}
 
 
-def score_method(
-    split: str, method: str, per_group: int | None, train_type: str | None
-) -> None:
+def score_method(split: str, method: str, per_group: int | None, train_type: str | None) -> None:
     stops = pl.scan_parquet(STOPS)
     rows = pl.read_parquet(paths.sample_runs(split))
     if train_type is not None:
         rows = rows.filter(pl.col("train_type") == train_type)
     if per_group is not None:
         # the first runs of each group, so a smaller trial is a subset of a larger one
-        keep = (
-            rows.select("group", "run_id")
-            .unique()
-            .sort("run_id")
-            .group_by("group")
-            .head(per_group)
-        )
+        keep = rows.select("group", "run_id").unique().sort("run_id").group_by("group").head(per_group)
         rows = rows.join(keep.select("run_id"), on="run_id", maintain_order="left")
 
     scored = pl.concat(
-        metrics.scored_rows(rows, pred, model).with_columns(
-            method=pl.lit(method), model=pl.lit(model)
-        )
+        metrics.scored_rows(rows, pred, model).with_columns(method=pl.lit(method), model=pl.lit(model))
         for model, pred in predict(method, stops, rows, split).items()
     )
     out = paths.scores(split, paths.subset_name(per_group, train_type), method)

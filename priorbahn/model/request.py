@@ -31,18 +31,10 @@ def predict_arrivals(
     Arrival delay quantiles (q50, q80, q95 by default) for the stops in `keys` (run_id,
     stop_num), with their `last_known_delay` and `minutes_since_known` (empty: not started).
     """
-    query = stops.join(
-        keys.select("run_id", "stop_num").unique().lazy(), on=["run_id", "stop_num"]
-    ).collect()
-    context = build_context(
-        stops, query, now, size=SIZE, same_train_days=SAME_TRAIN_DAYS
-    )
-    context = last_known.with_last_known(
-        with_days_ago(context, now.date()), stops, now, "arr", replay=True
-    )
-    query = last_known.with_last_known(
-        with_days_ago(query, now.date()), stops, now, "arr", replay=False
-    )
+    query = stops.join(keys.select("run_id", "stop_num").unique().lazy(), on=["run_id", "stop_num"]).collect()
+    context = build_context(stops, query, now, size=SIZE, same_train_days=SAME_TRAIN_DAYS)
+    context = last_known.with_last_known(with_days_ago(context, now.date()), stops, now, "arr", replay=True)
+    query = last_known.with_last_known(with_days_ago(query, now.date()), stops, now, "arr", replay=False)
     pred = predict_delays(
         context,
         query,
@@ -53,6 +45,4 @@ def predict_arrivals(
         version=version,
         quantiles=quantiles,
     )
-    return query.select(
-        "run_id", "stop_num", "last_known_delay", "minutes_since_known"
-    ).hstack(pred)
+    return query.select("run_id", "stop_num", "last_known_delay", "minutes_since_known").hstack(pred)

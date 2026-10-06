@@ -90,9 +90,7 @@ def short_label(label: str) -> str:
 
 
 @st.cache_data(show_spinner=False)
-def plan(
-    day: date, src: str, dst: str, now_time: time, version: str
-) -> tuple[list[dict], float]:
+def plan(day: date, src: str, dst: str, now_time: time, version: str) -> tuple[list[dict], float]:
     """
     The ranked routes (up to MAX_ROUTES), each a dict for render.card, and the seconds
     TabPFN took.
@@ -119,17 +117,11 @@ def plan(
         f"{len(legs)} legs, prediction {seconds:.1f}s",
         flush=True,
     )
-    legs = risk.with_departure_delays(
-        risk.with_arrival_delays(legs, pred), departure_delays(stops, legs, now)
-    )
+    legs = risk.with_departure_delays(risk.with_arrival_delays(legs, pred), departure_delays(stops, legs, now))
     transfers = risk.transfers(legs)
     summary = risk.routes(legs)
 
-    detail = (
-        stops.filter(pl.col("run_id").is_in(legs["run_id"].unique().implode()))
-        .select(STOP_COLUMNS)
-        .collect()
-    )
+    detail = stops.filter(pl.col("run_id").is_in(legs["run_id"].unique().implode())).select(STOP_COLUMNS).collect()
     q_cols = [f"q{round(q * 100)}" for q in QUANTILES]
     known = pred.select("run_id", "stop_num", "last_known_delay", *q_cols)
     out = []
@@ -141,12 +133,8 @@ def plan(
                 pl.col("run_id") == leg.run_id,
                 pl.col("stop_num").is_between(leg.from_stop_num, leg.to_stop_num),
             ).sort("stop_num")
-            row = legs.filter(pl.col("route") == r["route"], pl.col("leg") == i).row(
-                0, named=True
-            )
-            at_end = known.filter(
-                pl.col("run_id") == leg.run_id, pl.col("stop_num") == leg.to_stop_num
-            )
+            row = legs.filter(pl.col("route") == r["route"], pl.col("leg") == i).row(0, named=True)
+            at_end = known.filter(pl.col("run_id") == leg.run_id, pl.col("stop_num") == leg.to_stop_num)
             end = at_end.row(0, named=True) if len(at_end) else {}
             route_legs.append(
                 {
@@ -159,11 +147,7 @@ def plan(
                     "q80": row["q80"],
                     "last_known_delay": end.get("last_known_delay"),
                     # (level, minutes) for the delay curve, empty without a prediction
-                    "quantiles": [
-                        (q, end[c])
-                        for q, c in zip(QUANTILES, q_cols)
-                        if end.get(c) is not None
-                    ],
+                    "quantiles": [(q, end[c]) for q, c in zip(QUANTILES, q_cols) if end.get(c) is not None],
                     "transfer_after": None,
                 }
             )
@@ -197,9 +181,7 @@ def plan(
     return out, seconds
 
 
-def departure_delays(
-    stops: pl.LazyFrame, legs: pl.DataFrame, now: datetime
-) -> pl.DataFrame:
+def departure_delays(stops: pl.LazyFrame, legs: pl.DataFrame, now: datetime) -> pl.DataFrame:
     """
     The typical departure delay (q50) at each leg's boarding stop, by `carry_forward`:
     the delay where the train was last seen before now, or the same train at the same
@@ -212,9 +194,7 @@ def departure_delays(
     )
 
 
-def transfer_held(
-    arr: datetime, incoming: dict, dep: datetime, outgoing: dict
-) -> bool | None:
+def transfer_held(arr: datetime, incoming: dict, dep: datetime, outgoing: dict) -> bool | None:
     """
     Whether the transfer actually worked, by the same rule as the evaluation.
     """
@@ -244,8 +224,7 @@ with main:
     )
     if not Path(STOPS).exists():
         st.error(
-            f"`{STOPS}` is missing. Build it first: "
-            "`uv run --no-sync python -m priorbahn.data.prep` (see the README)."
+            f"`{STOPS}` is missing. Build it first: `uv run --no-sync python -m priorbahn.data.prep` (see the README)."
         )
         st.stop()
     load_token()
@@ -255,10 +234,7 @@ with main:
         try:  # connects with TABPFN_TOKEN, fails on a missing or invalid token
             tabpfn_client.init()
         except RuntimeError as error:
-            st.error(
-                "Cannot use the Prior Labs API. Check `TABPFN_TOKEN` in `.env`."
-                f"\n\n{error}"
-            )
+            st.error(f"Cannot use the Prior Labs API. Check `TABPFN_TOKEN` in `.env`.\n\n{error}")
             st.stop()
 
     with st.form("query"):
@@ -271,18 +247,10 @@ with main:
             max_value=DATA_DAYS[1],
         )
         stations = all_stations()
-        src_name = col_from.selectbox(
-            "From", stations, index=stations.index("Freiburg (Breisgau) Hbf")
-        )
-        dst_name = col_to.selectbox(
-            "To", stations, index=stations.index("Berlin Hauptbahnhof")
-        )
-        now_time = col_time.time_input(
-            "Now (earliest departure)", value=time(8, 0), step=timedelta(minutes=5)
-        )
-        model_name = st.radio(
-            f"Model ({'local' if LOCAL else 'API'})", list(MODELS), horizontal=True
-        )
+        src_name = col_from.selectbox("From", stations, index=stations.index("Freiburg (Breisgau) Hbf"))
+        dst_name = col_to.selectbox("To", stations, index=stations.index("Berlin Hauptbahnhof"))
+        now_time = col_time.time_input("Now (earliest departure)", value=time(8, 0), step=timedelta(minutes=5))
+        model_name = st.radio(f"Model ({'local' if LOCAL else 'API'})", list(MODELS), horizontal=True)
         submitted = st.form_submit_button("Find routes", type="primary")
 
     if submitted:
@@ -295,15 +263,9 @@ with main:
             st.stop()
         with st.spinner("Predicting delays..."):
             try:
-                routes, seconds = plan(
-                    day, src_name, dst_name, now_time, MODELS[model_name]
-                )
-            except (
-                RuntimeError
-            ) as error:  # tabpfn_client: the API is busy or unreachable
-                st.error(
-                    f"TabPFN is not reachable right now, please try again. ({error})"
-                )
+                routes, seconds = plan(day, src_name, dst_name, now_time, MODELS[model_name])
+            except RuntimeError as error:  # tabpfn_client: the API is busy or unreachable
+                st.error(f"TabPFN is not reachable right now, please try again. ({error})")
                 st.stop()
         if not routes:
             st.info("No route found for that time.")

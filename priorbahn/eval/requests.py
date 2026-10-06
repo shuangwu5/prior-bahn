@@ -70,17 +70,14 @@ def draw_requests(split: str, n: int, seed: int = 0) -> pl.DataFrame:
             "src": src,
             "dst": dst,
             "depart": [
-                datetime.combine(d, datetime.min.time())
-                + timedelta(hours=int(h), minutes=int(m))
+                datetime.combine(d, datetime.min.time()) + timedelta(hours=int(h), minutes=int(m))
                 for d, h, m in zip(days, hours, minutes)
             ],
         }
     )
 
 
-def find_journeys(
-    tt: rc.Timetable, src: str, dst: str, depart: datetime, n: int = N_ROUTES
-) -> list[list[rc.Leg]]:
+def find_journeys(tt: rc.Timetable, src: str, dst: str, depart: datetime, n: int = N_ROUTES) -> list[list[rc.Leg]]:
     """
     Up to `n` routes, found by rerunning for later departures (as the app).
     """
@@ -139,9 +136,7 @@ def build(split: str, n: int = N_REQUESTS, seed: int = 0) -> tuple[pl.DataFrame,
     return requests, pl.DataFrame(rows)
 
 
-def request_rows(
-    stops: pl.LazyFrame, requests: pl.DataFrame, legs: pl.DataFrame
-) -> pl.DataFrame:
+def request_rows(stops: pl.LazyFrame, requests: pl.DataFrame, legs: pl.DataFrame) -> pl.DataFrame:
     """
     The stop events scored for each request, one row per request, stop and event.
 
@@ -174,9 +169,7 @@ def request_rows(
         .join(runs.collect(), on=["run_id", "stop_num"])
         .with_columns(
             minutes_ahead=(
-                pl.when(pl.col("model") == "dep")
-                .then(pl.col("planned_dep"))
-                .otherwise(pl.col("planned_arr"))
+                pl.when(pl.col("model") == "dep").then(pl.col("planned_dep")).otherwise(pl.col("planned_arr"))
                 - pl.col("now")
             ).dt.total_minutes()
         )

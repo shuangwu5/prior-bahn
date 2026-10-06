@@ -30,9 +30,7 @@ def load_token() -> None:
     os.environ.setdefault("TABPFN_TOKEN", os.environ.get("PRIORLABS_API_KEY", ""))
 
 
-def regressor(
-    local: bool = False, version: str = VERSION
-) -> "tabpfn.TabPFNRegressor | tabpfn_client.TabPFNRegressor":
+def regressor(local: bool = False, version: str = VERSION) -> "tabpfn.TabPFNRegressor | tabpfn_client.TabPFNRegressor":
     if local:
         from tabpfn import TabPFNRegressor
     else:
@@ -86,11 +84,7 @@ def predict_delays(
     )
     # put the predictions back at the rows that have an event, null elsewhere
     mask = has_event.to_numpy()
-    base = (
-        rows[change_from].fill_null(0).to_numpy().astype(float)
-        if change_from is not None
-        else 0.0
-    )
+    base = rows[change_from].fill_null(0).to_numpy().astype(float) if change_from is not None else 0.0
     cols = {}
     for q, p in zip(quantiles, out):
         full = np.full(len(query), np.nan)

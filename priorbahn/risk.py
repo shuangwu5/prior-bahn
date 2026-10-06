@@ -152,12 +152,7 @@ def routes(legs: pl.DataFrame) -> pl.DataFrame:
     arrival = last.select(
         *ROUTE,
         pl.col("arr").alias("planned_arrival"),
-        *(
-            (pl.col("arr") + pl.duration(minutes=pl.col(q).ceil())).alias(
-                f"arrival_{q}"
-            )
-            for q in ("q50", "q80", "q95")
-        ),
+        *((pl.col("arr") + pl.duration(minutes=pl.col(q).ceil())).alias(f"arrival_{q}") for q in ("q50", "q80", "q95")),
     )
     return (
         arrival.join(weakest, on=ROUTE, how="left")
@@ -183,7 +178,5 @@ def held(
     minutes after the incoming train arrived. A canceled arrival or departure is a missed
     transfer; an unknown delay gives an empty result.
     """
-    gap = (
-        dep + pl.duration(minutes=dep_delay) - arr - pl.duration(minutes=arr_delay)
-    ).dt.total_minutes()
+    gap = (dep + pl.duration(minutes=dep_delay) - arr - pl.duration(minutes=arr_delay)).dt.total_minutes()
     return pl.when(arr_canceled | dep_canceled).then(False).otherwise(gap >= CHANGE_MIN)

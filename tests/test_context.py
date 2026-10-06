@@ -33,28 +33,18 @@ def stops() -> pl.LazyFrame:
 @pytest.fixture(scope="module")
 def query(stops: pl.LazyFrame) -> pl.DataFrame:
     query = (
-        stops.filter(
-            pl.col("run_day") == pl.lit(DAY), pl.col("station") == "Berlin Hauptbahnhof"
-        )
-        .head(30)
-        .collect()
+        stops.filter(pl.col("run_day") == pl.lit(DAY), pl.col("station") == "Berlin Hauptbahnhof").head(30).collect()
     )
     assert len(query) > 0, "empty query would make the tests below meaningless"
     return query
 
 
-def test_context_only_uses_earlier_days(
-    stops: pl.LazyFrame, query: pl.DataFrame
-) -> None:
+def test_context_only_uses_earlier_days(stops: pl.LazyFrame, query: pl.DataFrame) -> None:
     context = build_context(stops, query, START, size=500)
     assert 0 < len(context) <= 500
     assert context["run_day"].max() < pl.Series([DAY]).cast(pl.Datetime("ns"))[0]
     assert context["run_id"].is_in(query["run_id"].implode()).sum() == 0
-    assert (
-        not context.select(pl.struct("run_id", "stop_num").is_duplicated())
-        .to_series()
-        .any()
-    )
+    assert not context.select(pl.struct("run_id", "stop_num").is_duplicated()).to_series().any()
 
 
 def made_up_stops(rows: list[tuple]) -> pl.DataFrame:
@@ -227,18 +217,9 @@ def test_general_group_is_split_evenly_over_query_train_types() -> None:
     earlier = DAY - timedelta(days=3)
     stops = (
         made_up_stops(
-            [
-                (f"s{i}", earlier, "S 2", None, at(earlier, 9), None, 0)
-                for i in range(40)
-            ]
-            + [
-                (f"n{i}", earlier, "NJ 41", None, at(earlier, 21), None, 5)
-                for i in range(4)
-            ]
-            + [
-                (f"i{i}", earlier, "ICE 5", None, at(earlier, 12), None, 1)
-                for i in range(4)
-            ]
+            [(f"s{i}", earlier, "S 2", None, at(earlier, 9), None, 0) for i in range(40)]
+            + [(f"n{i}", earlier, "NJ 41", None, at(earlier, 21), None, 5) for i in range(4)]
+            + [(f"i{i}", earlier, "ICE 5", None, at(earlier, 12), None, 1) for i in range(4)]
         )
         .with_columns(station=pl.lit("X"))
         .lazy()
@@ -251,9 +232,7 @@ def test_general_group_is_split_evenly_over_query_train_types() -> None:
 
 
 @pytest.mark.parametrize("model", ["arr", "dep"])
-def test_features_share_categories(
-    stops: pl.LazyFrame, query: pl.DataFrame, model: str
-) -> None:
+def test_features_share_categories(stops: pl.LazyFrame, query: pl.DataFrame, model: str) -> None:
     context = build_context(stops, query, START, size=500)
     train = usable_rows(context, model)
     cats = shared_categories(train, query)

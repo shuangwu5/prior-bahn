@@ -83,9 +83,7 @@ def with_outcome(transfers: pl.DataFrame, stops: pl.LazyFrame) -> pl.DataFrame:
     )
 
 
-def arrival_quantiles(
-    method: str, stops: pl.LazyFrame, arr: pl.DataFrame, split: str
-) -> pl.DataFrame:
+def arrival_quantiles(method: str, stops: pl.LazyFrame, arr: pl.DataFrame, split: str) -> pl.DataFrame:
     """
     q50, q80 and q95 of `method` for the arrival rows `arr`, with request_id, run_id and
     stop_num. XGBoost's come from its saved scores (all arrivals with a known delay).
@@ -138,9 +136,7 @@ def summary(scored: pl.DataFrame) -> tuple[pl.DataFrame, pl.DataFrame]:
         scored.group_by("method")
         .agg(
             pl.len().alias("transfers"),
-            ((pl.col("probability") - pl.col("held").cast(pl.Float64)) ** 2)
-            .mean()
-            .alias("brier"),
+            ((pl.col("probability") - pl.col("held").cast(pl.Float64)) ** 2).mean().alias("brier"),
         )
         .sort("brier")
     )
@@ -151,9 +147,7 @@ def summary(scored: pl.DataFrame) -> tuple[pl.DataFrame, pl.DataFrame]:
             pl.col("probability").mean(),
             pl.col("held").mean(),
         )
-        .with_columns(
-            share=pl.col("transfers") / pl.col("transfers").sum().over("method")
-        )
+        .with_columns(share=pl.col("transfers") / pl.col("transfers").sum().over("method"))
         .sort("method", "level")
     )
     return brier, levels
@@ -165,13 +159,11 @@ def differences(scored: pl.DataFrame, reference: str, n: int = 2000) -> pl.DataF
     range comes from drawing the requests again with replacement `n` times: a range that
     includes 0 means no clear difference.
     """
-    wide = scored.with_columns(
-        b=(pl.col("probability") - pl.col("held").cast(pl.Float64)) ** 2
-    ).pivot(on="method", index=["request_id", "route", "leg"], values="b")
-    methods = [m for m in wide.columns[3:] if m != reference]
-    per_request = wide.group_by("request_id").agg(
-        pl.len(), *(pl.col(m) - pl.col(reference) for m in methods)
+    wide = scored.with_columns(b=(pl.col("probability") - pl.col("held").cast(pl.Float64)) ** 2).pivot(
+        on="method", index=["request_id", "route", "leg"], values="b"
     )
+    methods = [m for m in wide.columns[3:] if m != reference]
+    per_request = wide.group_by("request_id").agg(pl.len(), *(pl.col(m) - pl.col(reference) for m in methods))
     counts = per_request["len"].to_numpy()
     rng = np.random.default_rng(0)
     draws = rng.integers(0, len(per_request), (n, len(per_request)))
@@ -181,9 +173,7 @@ def differences(scored: pl.DataFrame, reference: str, n: int = 2000) -> pl.DataF
         means = diff[draws].sum(axis=1) / counts[draws].sum(axis=1)
         low, high = np.percentile(means, [2.5, 97.5])
         out.append((m, diff.sum() / counts.sum(), low, high))
-    return pl.DataFrame(
-        out, schema=["method", f"minus_{reference}", "low", "high"], orient="row"
-    )
+    return pl.DataFrame(out, schema=["method", f"minus_{reference}", "low", "high"], orient="row")
 
 
 def main() -> None:

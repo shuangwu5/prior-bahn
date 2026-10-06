@@ -68,18 +68,16 @@ def legs_with(q50: float, q80: float, q95: float) -> pl.DataFrame:
         (9, 12, 15, 4),  # 8 is below q50
     ],
 )
-def test_transfer_level_depends_on_the_room_at_each_quantile(
-    q50: int, q80: int, q95: int, level: int
-) -> None:
+def test_transfer_level_depends_on_the_room_at_each_quantile(q50: int, q80: int, q95: int, level: int) -> None:
     assert risk.transfers(legs_with(q50, q80, q95))["level"].to_list() == [level]
 
 
 def test_probability_meets_the_quantiles_and_rises() -> None:
     df = pl.DataFrame({"q50": [2.0], "q80": [5.0], "q95": [11.0]})
     x = [-30.0, 0.0, 2.0, 3.5, 5.0, 8.0, 11.0, 20.0, 60.0]
-    out = df.join(pl.DataFrame({"x": x}), how="cross").select(
-        risk.probability(pl.col("x")).alias("probability")
-    )["probability"]
+    out = df.join(pl.DataFrame({"x": x}), how="cross").select(risk.probability(pl.col("x")).alias("probability"))[
+        "probability"
+    ]
     assert out.gather([2, 4, 6]).to_list() == pytest.approx([0.5, 0.8, 0.95])
     assert out.is_sorted() and out.min() > 0 and out.max() < 1
 
@@ -87,9 +85,7 @@ def test_probability_meets_the_quantiles_and_rises() -> None:
 def test_a_late_connecting_train_gives_more_time() -> None:
     legs = legs_with(1, 8, 12)
     on_time = risk.transfers(legs)
-    dep = pl.DataFrame(
-        {"request_id": [1], "run_id": ["r2"], "stop_num": [3], "q50": [4.0]}
-    )
+    dep = pl.DataFrame({"request_id": [1], "run_id": ["r2"], "stop_num": [3], "q50": [4.0]})
     late = risk.transfers(risk.with_departure_delays(legs, dep))
     assert (on_time["wait_min"][0], late["wait_min"][0]) == (8, 12)
     assert late["probability"][0] == pytest.approx(0.95)
@@ -157,8 +153,6 @@ def test_held_needs_the_change_time_and_no_cancellation() -> None:
             "dep_canceled": [False] * 4,
         }
     )
-    out = df.select(risk.held(*(pl.col(c) for c in df.columns)).alias("held"))[
-        "held"
-    ].to_list()
+    out = df.select(risk.held(*(pl.col(c) for c in df.columns)).alias("held"))["held"].to_list()
     # 3 min left, 1 min left, canceled, unknown delay
     assert out == [True, False, False, None]

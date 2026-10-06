@@ -39,19 +39,12 @@ def made_up_stops(rows: list[tuple]) -> pl.LazyFrame:
 
 def test_history_leaves_out_events_of_the_query_day() -> None:
     day_before = DAY - timedelta(days=1)
-    rows = [
-        (f"r{i}", day_before, datetime.combine(day_before, time(10, i)), 1)
-        for i in range(10)
-    ]
+    rows = [(f"r{i}", day_before, datetime.combine(day_before, time(10, i)), 1) for i in range(10)]
     # an earlier-day run that arrives after midnight, on the query day: with it in the
     # history, q95 of these 11 delays would be 50
     rows += [("late", day_before, datetime.combine(DAY, time(0, 30)), 99)]
     stops = made_up_stops(rows)
-    query = (
-        stops.filter(pl.col("run_id") == "r0")
-        .collect()
-        .with_columns(run_day=pl.lit(DAY).cast(pl.Datetime("ns")))
-    )
+    query = stops.filter(pl.col("run_id") == "r0").collect().with_columns(run_day=pl.lit(DAY).cast(pl.Datetime("ns")))
 
     pred = global_quantiles(stops, query, "arr")
     assert pred["q95"].to_list() == [1.0]

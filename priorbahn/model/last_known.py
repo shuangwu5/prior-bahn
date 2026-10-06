@@ -48,9 +48,7 @@ def with_last_known(
     return at_cutoff(rows, stops, cutoff, model)
 
 
-def at_cutoff(
-    rows: pl.DataFrame, stops: pl.LazyFrame, cutoff: pl.Expr, model: str
-) -> pl.DataFrame:
+def at_cutoff(rows: pl.DataFrame, stops: pl.LazyFrame, cutoff: pl.Expr, model: str) -> pl.DataFrame:
     """
     `rows` with the COLUMNS for their `model` event, known before `cutoff`, an
     expression on `rows` that can differ per row.
@@ -60,12 +58,7 @@ def at_cutoff(
     runs = (
         stops.filter(pl.col("run_id").is_in(rows["run_id"].unique().implode()))
         .collect()
-        .with_columns(
-            pl.coalesce("planned_arr", "planned_dep")
-            .rank("ordinal")
-            .over("run_id")
-            .alias("stop_index")
-        )
+        .with_columns(pl.coalesce("planned_arr", "planned_dep").rank("ordinal").over("run_id").alias("stop_index"))
     )
     events = pl.concat(
         [
@@ -88,31 +81,21 @@ def at_cutoff(
     )
     earlier_stop = pl.col("known_index") < pl.col("stop_index")
     # a departure may be predicted from the arrival at the same stop
-    same_stop_arrival = (pl.col("known_index") == pl.col("stop_index")) & pl.col(
-        "known_is_arr"
-    )
+    same_stop_arrival = (pl.col("known_index") == pl.col("stop_index")) & pl.col("known_is_arr")
     if model == "arr":
         same_stop_arrival = pl.lit(False)
     last = (
         targets.select("_row", "run_id", "stop_index", planned, cutoff.alias("cutoff"))
         .join(events, on="run_id")
-        .filter(
-            pl.col("known_time") < pl.col("cutoff"), earlier_stop | same_stop_arrival
-        )
+        .filter(pl.col("known_time") < pl.col("cutoff"), earlier_stop | same_stop_arrival)
         .sort("known_time")
         .group_by("_row")
         .agg(pl.all().last())
         .select(
             "_row",
             "last_known_delay",
-            (planned - pl.col("known_planned"))
-            .dt.total_minutes()
-            .alias("minutes_since_known"),
+            (planned - pl.col("known_planned")).dt.total_minutes().alias("minutes_since_known"),
             (pl.col("stop_index") - pl.col("known_index")).alias("stops_since_known"),
         )
     )
-    return (
-        targets.join(last, on="_row", how="left")
-        .sort("_row")
-        .drop("_row", "stop_index")
-    )
+    return targets.join(last, on="_row", how="left").sort("_row").drop("_row", "stop_index")

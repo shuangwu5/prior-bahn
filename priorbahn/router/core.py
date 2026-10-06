@@ -65,11 +65,7 @@ def load_timetable(day: date, path: str = PATH) -> Timetable:
         pl.scan_parquet(path)
         # runs of the day before can still be running, and routes of a late request
         # continue after midnight on runs of the next day
-        .filter(
-            pl.col("run_day").is_between(
-                day - timedelta(days=1), day + timedelta(days=1)
-            )
-        )
+        .filter(pl.col("run_day").is_between(day - timedelta(days=1), day + timedelta(days=1)))
         .filter(
             pl.coalesce("planned_dep", "planned_arr").is_between(
                 day_start - timedelta(hours=12), day_start + timedelta(hours=36)
@@ -134,9 +130,7 @@ def stops_between(tt: Timetable, enter: int, leave: int) -> list[str]:
     return [C[i]["station"] for i in seg] + [C[leave]["next_station"]]
 
 
-def earliest_arrival(
-    tt: Timetable, src: str, dst: str, depart_at: datetime
-) -> list[tuple[int, int]] | None:
+def earliest_arrival(tt: Timetable, src: str, dst: str, depart_at: datetime) -> list[tuple[int, int]] | None:
     """
     Connection scan: returns legs as (boarding connection, alighting connection) index pairs.
 
@@ -158,8 +152,7 @@ def earliest_arrival(
         ready = best.get(u)
         if (
             ready is not None
-            and ready + timedelta(minutes=0 if u == src else MIN_TRANSFER_MIN)
-            <= c["dep"]
+            and ready + timedelta(minutes=0 if u == src else MIN_TRANSFER_MIN) <= c["dep"]
             and boardings[u] + 1 < run_boardings.get(run, INF)
         ):
             boarded[run] = i
@@ -201,17 +194,13 @@ def replay(tt: Timetable, legs: list[tuple[int, int]]) -> list[Leg]:
             if prev["arr_actual"] is not None and a["dep_actual"] is not None:
                 status = (
                     "held"
-                    if a["dep_actual"] >= prev["arr_actual"]
-                    and not a["dep_canceled"]
-                    and not prev["arr_canceled"]
+                    if a["dep_actual"] >= prev["arr_actual"] and not a["dep_canceled"] and not prev["arr_canceled"]
                     else "MISSED"
                 )
             transfer = Transfer(
                 station=a["station"],
                 planned_min=delay(prev["arr"], a["dep"]),
-                actual_min=delay(prev["arr_actual"], a["dep_actual"])
-                if prev["arr_actual"] is not None
-                else None,
+                actual_min=delay(prev["arr_actual"], a["dep_actual"]) if prev["arr_actual"] is not None else None,
                 status=status,
             )
         out.append(

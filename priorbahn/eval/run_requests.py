@@ -137,8 +137,7 @@ def tabpfn(
             cache.write_parquet(tmp)
             tmp.replace(path)
             print(
-                f"{variant}: {i + 1}/{len(requests)} requests done, "
-                f"{time.time() - t:.0f}s so far",
+                f"{variant}: {i + 1}/{len(requests)} requests done, {time.time() - t:.0f}s so far",
                 flush=True,
             )
     return cache
@@ -158,9 +157,7 @@ def predict(
     """
     if method in TABPFN:
         cache = tabpfn(stops, rows, split, method, models, local, workers)
-        return rows.select(*KEYS, "model").join(
-            cache, on=[*KEYS, "model"], how="left", maintain_order="left"
-        )
+        return rows.select(*KEYS, "model").join(cache, on=[*KEYS, "model"], how="left", maintain_order="left")
     fn = BASELINES[method]
     rows = rows.with_row_index("row")
     out = []
@@ -237,9 +234,7 @@ def report(split: str, subset: str, methods: list[str] | None, reference: str) -
     """
     folder = paths.scores(split, subset, "x").parent
     methods = methods or sorted(p.stem for p in folder.glob("*.parquet"))
-    scored = pl.concat(
-        pl.read_parquet(paths.scores(split, subset, m)) for m in methods
-    ).with_columns(case())
+    scored = pl.concat(pl.read_parquet(paths.scores(split, subset, m)) for m in methods).with_columns(case())
     n_methods = scored["method"].n_unique()
     shared = (
         scored.group_by("request_id")
@@ -273,9 +268,7 @@ def differences(scored: pl.DataFrame, reference: str, n: int = 2000) -> pl.DataF
     loss = pl.mean_horizontal(metrics.pinball(q) for q in metrics.QCOLS)
     wide = scored.with_columns(
         loss=loss,
-        seen=pl.when(pl.col("seen_delay").is_null())
-        .then(pl.lit("not seen"))
-        .otherwise(pl.lit("seen")),
+        seen=pl.when(pl.col("seen_delay").is_null()).then(pl.lit("not seen")).otherwise(pl.lit("seen")),
     ).pivot(
         on="method",
         index=["request_id", "run_id", "stop_num", "model", "seen"],
@@ -284,9 +277,7 @@ def differences(scored: pl.DataFrame, reference: str, n: int = 2000) -> pl.DataF
     rng = np.random.default_rng(0)
     out = []
     for (model, seen), part in wide.group_by("model", "seen", maintain_order=True):
-        per_request = part.group_by("request_id").agg(
-            pl.len(), *(pl.col(m).sum() for m in wide.columns[5:])
-        )
+        per_request = part.group_by("request_id").agg(pl.len(), *(pl.col(m).sum() for m in wide.columns[5:]))
         counts = per_request["len"].to_numpy()
         draws = rng.integers(0, len(per_request), (n, len(per_request)))
         for m in wide.columns[5:]:
@@ -308,19 +299,11 @@ def main() -> None:
     parser.add_argument("split", choices=["validation", "test"])
     parser.add_argument("method", choices=[*METHODS, "report"])
     parser.add_argument("--limit", type=int, help="score only the first N requests")
-    parser.add_argument(
-        "--day", help="score only the requests of this day (YYYY-MM-DD)"
-    )
-    parser.add_argument(
-        "--local", action="store_true", help="run TabPFN here instead of the API"
-    )
-    parser.add_argument(
-        "--models", nargs="+", default=MODELS, choices=MODELS, help="events to score"
-    )
+    parser.add_argument("--day", help="score only the requests of this day (YYYY-MM-DD)")
+    parser.add_argument("--local", action="store_true", help="run TabPFN here instead of the API")
+    parser.add_argument("--models", nargs="+", default=MODELS, choices=MODELS, help="events to score")
     parser.add_argument("--workers", type=int, default=4, help="requests at a time")
-    parser.add_argument(
-        "--reference", default="carry_forward", help="method the others are compared to"
-    )
+    parser.add_argument("--reference", default="carry_forward", help="method the others are compared to")
     parser.add_argument("--subset", default="requests", help="subset to report")
     parser.add_argument("--methods", nargs="+", help="methods to report")
     args = parser.parse_args()

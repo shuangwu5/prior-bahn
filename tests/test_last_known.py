@@ -30,10 +30,7 @@ def run(run_id: str, day: date, delays: list[tuple]) -> list[tuple]:
         (at(day, 14, 30), at(day, 14, 32)),
         (at(day, 15), None),
     ]
-    return [
-        (run_id, i + 1, arr, dep, *delay)
-        for i, ((arr, dep), delay) in enumerate(zip(planned, delays))
-    ]
+    return [(run_id, i + 1, arr, dep, *delay) for i, ((arr, dep), delay) in enumerate(zip(planned, delays))]
 
 
 STOPS = pl.DataFrame(
@@ -61,9 +58,7 @@ STOPS = pl.DataFrame(
 def last_known(run_id: str, stop_num: int, model: str, replay: bool) -> tuple:
     rows = STOPS.filter(pl.col("run_id") == run_id, pl.col("stop_num") == stop_num)
     out = with_last_known(rows, STOPS.lazy(), NOW, model, replay)
-    return out.select(
-        "last_known_delay", "minutes_since_known", "stops_since_known"
-    ).row(0)
+    return out.select("last_known_delay", "minutes_since_known", "stops_since_known").row(0)
 
 
 def test_query_row_uses_only_events_before_now() -> None:

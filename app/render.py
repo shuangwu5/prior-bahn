@@ -18,8 +18,7 @@ def _top() -> str:
     Hovering or tapping the info icon explains the levels.
     """
     levels = "".join(
-        f'<span class="lv"><i class="dot l{k}"></i><b>{label.capitalize()}</b>: '
-        f"{prob_range}</span>"
+        f'<span class="lv"><i class="dot l{k}"></i><b>{label.capitalize()}</b>: {prob_range}</span>'
         for k, (label, prob_range) in LEVELS.items()
     )
     tip = (
@@ -35,10 +34,7 @@ def _top() -> str:
         f'<i class="info" tabindex="0" aria-label="About transfer reliability">i'
         f'<span class="tip" role="tooltip">{tip}</span></i></span>'
     )
-    items = "".join(
-        f'<span><i class="dot l{k}"></i>{label.capitalize()}</span>'
-        for k, (label, _) in LEVELS.items()
-    )
+    items = "".join(f'<span><i class="dot l{k}"></i>{label.capitalize()}</span>' for k, (label, _) in LEVELS.items())
     return (
         f'<div class="top"><div class="legend">{lead}{items}</div>'
         '<label class="reveal"><input type="checkbox" id="rr-reveal"> '
@@ -65,10 +61,7 @@ def _dot(level: int | None, hint: str | None = None) -> str:
     """
     if hint is None:
         return f'<i class="dot l{level or 0}"></i>'
-    return (
-        f'<i class="dot l{level or 0} hint" tabindex="0">'
-        f'<span class="hint-text">{escape(hint)}</span></i>'
-    )
+    return f'<i class="dot l{level or 0} hint" tabindex="0"><span class="hint-text">{escape(hint)}</span></i>'
 
 
 def _transfer_hint(t: dict) -> str:
@@ -115,10 +108,7 @@ def _density(qs: list[tuple[float, float]]) -> list[tuple[float, float]]:
             if lo <= x < lo + w:
                 ys[i] += share / w
     k = 2  # 2 points on each side: 1 minute
-    smooth = [
-        sum(ys[max(i - k, 0) : i + k + 1]) / (2 * k + 1) if x >= floor else 0.0
-        for i, x in enumerate(xs)
-    ]
+    smooth = [sum(ys[max(i - k, 0) : i + k + 1]) / (2 * k + 1) if x >= floor else 0.0 for i, x in enumerate(xs)]
     return list(zip(xs, smooth))
 
 
@@ -138,9 +128,9 @@ def _curve(leg: dict, room: float | None, actual: int | None) -> str:
     (`room` None) it has one color. `actual` (the real delay, None if unknown) is marked
     only when the switch is on. Drawn with clip-path, because st.html removes SVG.
     """
-    # an early arrival is drawn as on time (and "typical" is shown as at least +0): it makes the transfer just the same, and
-    # TabPFN's smooth curve spreads the many on-time arrivals below 0 (15% early where
-    # 2.4% of all arrivals in the data are early)
+    # an early arrival is drawn as on time (and "typical" is shown as at least +0): it makes the transfer just the
+    # same, and TabPFN's smooth curve spreads the many on-time arrivals below 0 (15% early where 2.4% of all arrivals
+    # in the data are early)
     qs = [(q, max(d, 0.0)) for q, d in leg["quantiles"]]
     pts = _density(qs)
     # from just before the 5% quantile to just after the 95% one; the long tail of big
@@ -158,9 +148,7 @@ def _curve(leg: dict, room: float | None, actual: int | None) -> str:
         clip-path polygon of the curve between delays a and b, in %.
         """
         xs = [a, *(x for x, _ in pts if a < x < b), b]
-        top = ", ".join(
-            f"{sx(x):.1f}% {100 - _at(pts, x) / ymax * 100:.1f}%" for x in xs
-        )
+        top = ", ".join(f"{sx(x):.1f}% {100 - _at(pts, x) / ymax * 100:.1f}%" for x in xs)
         return f"polygon({sx(a):.1f}% 100%, {top}, {sx(b):.1f}% 100%)"
 
     # the curve in the train color, and on top the same shape 2px lower in green and
@@ -222,24 +210,16 @@ def _curve(leg: dict, room: float | None, actual: int | None) -> str:
     )
 
 
-def _stop(
-    s: dict, cls: str, extra: str = "", arr: bool = True, dep: bool = True
-) -> str:
+def _stop(s: dict, cls: str, extra: str = "", arr: bool = True, dep: bool = True) -> str:
     """
     One stop of the list. Where you board only the departure is shown (`arr` False),
     where you leave only the arrival (`dep` False), as in the DB app.
     """
     times = []
     if arr and s["planned_arr"] is not None:
-        times.append(
-            f"<span>{_time(s['planned_arr'])}"
-            f"{_delay(s['arr_delay'], s['arr_canceled'])}</span>"
-        )
+        times.append(f"<span>{_time(s['planned_arr'])}{_delay(s['arr_delay'], s['arr_canceled'])}</span>")
     if dep and s["planned_dep"] is not None:
-        times.append(
-            f"<span>{_time(s['planned_dep'])}"
-            f"{_delay(s['dep_delay'], s['dep_canceled'])}</span>"
-        )
+        times.append(f"<span>{_time(s['planned_dep'])}{_delay(s['dep_delay'], s['dep_canceled'])}</span>")
     return (
         f'<div class="row {cls}"><div class="t">{"".join(times)}</div>'
         f'<div class="rail"><i></i></div>'
@@ -270,11 +250,7 @@ def _leg(leg: dict) -> str:
     else:
         html += "</div></div>"
     t = leg["transfer_after"]
-    pred = (
-        f'<div class="pred">typical <b>{round(max(leg["q50"], 0)):+d}</b></div>'
-        if leg["q50"] is not None
-        else ""
-    )
+    pred = f'<div class="pred">typical <b>{round(max(leg["q50"], 0)):+d}</b></div>' if leg["q50"] is not None else ""
     actual = None if last["arr_canceled"] else last["arr_delay"]
     has_curve = len(leg["quantiles"]) > 1
     if t is None and has_curve:  # the destination
@@ -283,11 +259,7 @@ def _leg(leg: dict) -> str:
     if t is not None:
         outcome = ""
         if t["held"] is not None:
-            outcome = (
-                '<span class="held">✓ held</span>'
-                if t["held"]
-                else '<span class="missed">✗ missed</span>'
-            )
+            outcome = '<span class="held">✓ held</span>' if t["held"] else '<span class="missed">✗ missed</span>'
         curve = _curve(leg, t["wait_min"], actual) if has_curve else ""
         html += (
             f'<div class="xfer"><div class="t"></div><div class="rail">'
@@ -309,19 +281,15 @@ def card(route: dict) -> str:
         t = leg["transfer_after"]
         if t is not None:
             bar.append(
-                f'<div class="wait" style="flex:{max(t["planned_min"], 1)}">'
-                f"{_dot(t['level'], _transfer_hint(t))}</div>"
+                f'<div class="wait" style="flex:{max(t["planned_min"], 1)}">{_dot(t["level"], _transfer_hint(t))}</div>'
             )
     n = len(legs) - 1
-    minutes = int(
-        (route["planned_arrival"] - route["planned_departure"]).total_seconds() // 60
-    )
+    minutes = int((route["planned_arrival"] - route["planned_departure"]).total_seconds() // 60)
     transfers = "Direct" if n == 0 else f"{n} transfer" + ("s" if n > 1 else "")
     probabilities = [
         leg["transfer_after"]["probability"]
         for leg in legs
-        if leg["transfer_after"] is not None
-        and leg["transfer_after"]["probability"] is not None
+        if leg["transfer_after"] is not None and leg["transfer_after"]["probability"] is not None
     ]
     if n == 0:
         head_hint = "Direct, no transfer to miss"
@@ -330,11 +298,7 @@ def card(route: dict) -> str:
     else:
         head_hint = None
     q50 = legs[-1]["q50"]
-    typical = (
-        f'<span class="typical">(typical <b>{round(max(q50, 0)):+d}</b>)</span>'
-        if q50 is not None
-        else ""
-    )
+    typical = f'<span class="typical">(typical <b>{round(max(q50, 0)):+d}</b>)</span>' if q50 is not None else ""
     return (
         '<div class="route"><div class="head">'
         f"{_dot(route['weakest'], head_hint)}"

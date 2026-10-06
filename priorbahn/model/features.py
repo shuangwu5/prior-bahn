@@ -36,9 +36,7 @@ def with_days_ago(df: pl.DataFrame, day: date) -> pl.DataFrame:
     """
     Days from the row's run day to the request `day` (0 for runs of that day).
     """
-    return df.with_columns(
-        (pl.lit(day) - pl.col("run_day").dt.date()).dt.total_days().alias("days_ago")
-    )
+    return df.with_columns((pl.lit(day) - pl.col("run_day").dt.date()).dt.total_days().alias("days_ago"))
 
 
 def usable_rows(df: pl.DataFrame, model: str) -> pl.DataFrame:

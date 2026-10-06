@@ -80,21 +80,9 @@ def load_month(month: str) -> pl.LazyFrame:
 
     # rows without a train type are dropped too (about 37k rows, none has a planned time)
     train_type = pl.col("train_type")
-    is_train = (
-        train_type.is_not_null()
-        & ~train_type.str.contains(f"(?i){NON_TRAIN}")
-        & ~train_type.is_in(DROP_TYPES)
-    )
-    has_planned_time = (
-        pl.col("arrival_planned_time").is_not_null()
-        | pl.col("departure_planned_time").is_not_null()
-    )
-    keep = (
-        is_train
-        & ~pl.col("is_replacement_train")
-        & ~pl.col("is_additional_stop")
-        & has_planned_time
-    )
+    is_train = train_type.is_not_null() & ~train_type.str.contains(f"(?i){NON_TRAIN}") & ~train_type.is_in(DROP_TYPES)
+    has_planned_time = pl.col("arrival_planned_time").is_not_null() | pl.col("departure_planned_time").is_not_null()
+    keep = is_train & ~pl.col("is_replacement_train") & ~pl.col("is_additional_stop") & has_planned_time
     df = df.filter(keep)
 
     # `id` is <ride id>-<run start YYMMDDHHMM>-<stop number>.
@@ -102,9 +90,7 @@ def load_month(month: str) -> pl.LazyFrame:
     pattern = r"^(.*-(\d{6})\d{4})-\d+$"
     df = df.with_columns(
         run_id=pl.col("id").str.extract(pattern, 1),
-        run_day=pl.col("id")
-        .str.extract(pattern, 2)
-        .str.strptime(pl.Datetime("ns"), "%y%m%d"),
+        run_day=pl.col("id").str.extract(pattern, 2).str.strptime(pl.Datetime("ns"), "%y%m%d"),
     )
     return df.drop("id")
 
@@ -118,11 +104,7 @@ def destination_in_station_spelling(df: pl.DataFrame) -> pl.Series:
     the xml_station_name -> station pairs seen in the data. An xml name that belongs to
     two different stations cannot be translated and is left out of the lookup.
     """
-    pairs = (
-        df.select(xml="xml_station_name", translated="station")
-        .unique()
-        .filter(pl.len().over("xml") == 1)
-    )
+    pairs = df.select(xml="xml_station_name", translated="station").unique().filter(pl.len().over("xml") == 1)
     # places that are not stops in our data (Basel SBB, Enschede, bus stops) keep their
     # source spelling, and the source leaves the destination empty at the last stop of a
     # run, where it is the station itself
@@ -148,9 +130,7 @@ def build() -> pl.DataFrame:
         pl.concat([load_month(m) for m in MONTHS])
         .filter(pl.col("run_day").is_between(FIRST_DAY, LAST_DAY))
         # stations are merged by name, the few without a name keep their EVA code
-        .with_columns(
-            station=pl.coalesce("station_name", pl.lit("EVA ") + pl.col("eva"))
-        )
+        .with_columns(station=pl.coalesce("station_name", pl.lit("EVA ") + pl.col("eva")))
         .collect()
     )
 
@@ -175,18 +155,10 @@ def build() -> pl.DataFrame:
         # are recomputed from the time columns.
         # A canceled event has no usable delay, so it becomes null.
         arr_delay=pl.when(~arr_canceled).then(
-            null_date_errors(
-                minutes_between(
-                    pl.col("arrival_change_time"), pl.col("arrival_planned_time")
-                )
-            )
+            null_date_errors(minutes_between(pl.col("arrival_change_time"), pl.col("arrival_planned_time")))
         ),
         dep_delay=pl.when(~dep_canceled).then(
-            null_date_errors(
-                minutes_between(
-                    pl.col("departure_change_time"), pl.col("departure_planned_time")
-                )
-            )
+            null_date_errors(minutes_between(pl.col("departure_change_time"), pl.col("departure_planned_time")))
         ),
     )
 
@@ -201,9 +173,7 @@ def build() -> pl.DataFrame:
     out = out.with_columns(
         prev_station=pl.when(prev_is_adjacent).then(pl.col("station").shift()),
         run_planned_min=pl.when(prev_is_adjacent).then(
-            null_date_errors(
-                minutes_between(pl.col("planned_arr"), pl.col("planned_dep").shift())
-            )
+            null_date_errors(minutes_between(pl.col("planned_arr"), pl.col("planned_dep").shift()))
         ),
         dwell_planned_min=minutes_between(pl.col("planned_dep"), pl.col("planned_arr")),
         # highest stop number seen in each run
@@ -222,9 +192,7 @@ def build() -> pl.DataFrame:
         dep_hour=pl.col("planned_dep").dt.hour().cast(pl.Float64),
         dep_minute=pl.col("planned_dep").dt.minute().cast(pl.Float64),
         # weekday from the planned time (departure, or arrival at the last stop)
-        weekday=pl.coalesce("planned_dep", "planned_arr")
-        .dt.weekday()
-        .cast(pl.UInt8),  # 1 is Monday
+        weekday=pl.coalesce("planned_dep", "planned_arr").dt.weekday().cast(pl.UInt8),  # 1 is Monday
         # the split is decided by the day the run starts
         split=pl.when(pl.col("run_day") < VALIDATION_START)
         .then(pl.lit("context"))
@@ -263,15 +231,10 @@ def build() -> pl.DataFrame:
 
 
 def main() -> None:
-    n_raw = sum(
-        pl.scan_parquet(RAW.format(month=m)).select(pl.len()).collect().item()
-        for m in MONTHS
-    )
+    n_raw = sum(pl.scan_parquet(RAW.format(month=m)).select(pl.len()).collect().item() for m in MONTHS)
     df = build()
 
-    assert not df.select(
-        pl.struct("run_id", "stop_num").is_duplicated().any()
-    ).item(), "(run_id, stop_num) repeats"
+    assert not df.select(pl.struct("run_id", "stop_num").is_duplicated().any()).item(), "(run_id, stop_num) repeats"
 
     OUT.parent.mkdir(parents=True, exist_ok=True)
     df.write_parquet(OUT, compression="zstd")

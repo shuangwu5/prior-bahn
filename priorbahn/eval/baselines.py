@@ -21,10 +21,9 @@ MIN_COUNT = 10  # fewer past rows than this and the next, coarser level is used
 
 
 def _quantiles(target: str) -> list[pl.Expr]:
-    return [
-        pl.col(target).quantile(q, interpolation="linear").alias(f"q{round(q * 100)}")
-        for q in QUANTILES
-    ] + [pl.len().alias("count")]
+    return [pl.col(target).quantile(q, interpolation="linear").alias(f"q{round(q * 100)}") for q in QUANTILES] + [
+        pl.len().alias("count")
+    ]
 
 
 def _history(stops: pl.LazyFrame, day: date, model: str) -> pl.LazyFrame:
@@ -39,9 +38,7 @@ def _history(stops: pl.LazyFrame, day: date, model: str) -> pl.LazyFrame:
     ).with_columns(pl.col(event["target"]).cast(pl.Float64))
 
 
-def _per_day(
-    stops: pl.LazyFrame, query: pl.DataFrame, model: str, levels: list[list[str]]
-) -> pl.DataFrame:
+def _per_day(stops: pl.LazyFrame, query: pl.DataFrame, model: str, levels: list[list[str]]) -> pl.DataFrame:
     """
     Quantiles for each query row from the first level with enough history.
 
@@ -57,9 +54,7 @@ def _per_day(
     query = query.with_row_index("_row").with_columns(pl.col(hour).cast(pl.Int8))
     for (day,), rows in query.group_by("run_day", maintain_order=True):
         history = _history(stops, day, model).with_columns(pl.col(hour).cast(pl.Int8))
-        filled = rows.select("_row").with_columns(
-            *(pl.lit(None, pl.Float64).alias(c) for c in qcols)
-        )
+        filled = rows.select("_row").with_columns(*(pl.lit(None, pl.Float64).alias(c) for c in qcols))
         for keys in levels:
             if keys:
                 # read only the history of the keys this day's rows need
@@ -77,43 +72,33 @@ def _per_day(
                 level = rows.select("_row").join(stats, how="cross")
             # keep values found at a finer level, fill the rest from this level
             filled = filled.join(level.select("_row", *qcols), on="_row", suffix="_l")
-            filled = filled.select(
-                "_row", *(pl.coalesce(c, f"{c}_l").alias(c) for c in qcols)
-            )
+            filled = filled.select("_row", *(pl.coalesce(c, f"{c}_l").alias(c) for c in qcols))
         out.append(filled)
 
     pred = query.select("_row", hour).join(pl.concat(out), on="_row", how="left")
     # no event (arrival at a first stop, departure at a last stop): no prediction
     return (
         pred.sort("_row")
-        .with_columns(
-            pl.when(pl.col(hour).is_not_null()).then(pl.col(c)).alias(c) for c in qcols
-        )
+        .with_columns(pl.when(pl.col(hour).is_not_null()).then(pl.col(c)).alias(c) for c in qcols)
         .select(qcols)
     )
 
 
-def global_quantiles(
-    stops: pl.LazyFrame, query: pl.DataFrame, model: str
-) -> pl.DataFrame:
+def global_quantiles(stops: pl.LazyFrame, query: pl.DataFrame, model: str) -> pl.DataFrame:
     """
     The same delay quantiles for every row: those of all past rows.
     """
     return _per_day(stops, query, model, levels=[[]])
 
 
-def train_station_quantiles(
-    stops: pl.LazyFrame, query: pl.DataFrame, model: str
-) -> pl.DataFrame:
+def train_station_quantiles(stops: pl.LazyFrame, query: pl.DataFrame, model: str) -> pl.DataFrame:
     """
     Quantiles of the same train at the same station on past days. With fewer than
     MIN_COUNT past rows, fall back to the station at the same planned hour, then to all
     past rows.
     """
     hour = EVENTS[model]["numeric"][0]
-    return _per_day(
-        stops, query, model, levels=[["train_key", "station"], ["station", hour], []]
-    )
+    return _per_day(stops, query, model, levels=[["train_key", "station"], ["station", hour], []])
 
 
 def carry_forward(stops: pl.LazyFrame, query: pl.DataFrame, model: str) -> pl.DataFrame:

@@ -44,20 +44,15 @@ def week_runs(stops: pl.LazyFrame, split: str) -> pl.DataFrame:
     )
 
 
-def sample_runs(
-    stops: pl.LazyFrame, split: str, per_group: int = RUNS_PER_GROUP, seed: int = 0
-) -> pl.DataFrame:
+def sample_runs(stops: pl.LazyFrame, split: str, per_group: int = RUNS_PER_GROUP, seed: int = 0) -> pl.DataFrame:
     # sorted so the sample is reproducible
     runs = week_runs(stops, split).sort("run_id")
     return pl.concat(
-        g.sample(min(per_group, len(g)), seed=seed)
-        for _, g in runs.group_by("group", maintain_order=True)
+        g.sample(min(per_group, len(g)), seed=seed) for _, g in runs.group_by("group", maintain_order=True)
     ).sort("group", "run_id")
 
 
-def group_weights(
-    stops: pl.LazyFrame, split: str, sample: pl.DataFrame
-) -> pl.DataFrame:
+def group_weights(stops: pl.LazyFrame, split: str, sample: pl.DataFrame) -> pl.DataFrame:
     """
     Weight per sampled row so that each group counts with its share of all week rows.
     """

@@ -22,9 +22,7 @@ def pinball(q: float) -> pl.Expr:
     return pl.max_horizontal(q * diff, (q - 1) * diff)
 
 
-def scored_rows(
-    rows: pl.DataFrame, pred: pl.DataFrame, model: str, extra: tuple[str, ...] = ()
-) -> pl.DataFrame:
+def scored_rows(rows: pl.DataFrame, pred: pl.DataFrame, model: str, extra: tuple[str, ...] = ()) -> pl.DataFrame:
     """
     Query rows next to their predictions, kept only where the target is known.
 
@@ -70,10 +68,7 @@ def score(df: pl.DataFrame, by: str | list[str] | None = None) -> pl.DataFrame:
     aggs += [mean(pinball(q)).alias(f"pinball_{c}") for q, c in QCOLS.items()]
     aggs.append(mean(pl.mean_horizontal(pinball(q) for q in QCOLS)).alias("pinball"))
     aggs.append(mean((pl.col("y") - pl.col(QCOLS[0.5])).abs()).alias("mae"))
-    aggs += [
-        mean((pl.col("y") <= pl.col(c)).cast(pl.Float64)).alias(f"cover_{c}")
-        for c in QCOLS.values()
-    ]
+    aggs += [mean((pl.col("y") <= pl.col(c)).cast(pl.Float64)).alias(f"cover_{c}") for c in QCOLS.values()]
     if by is None:
         return df.select(aggs)
     return df.group_by(by).agg(aggs).sort(by)

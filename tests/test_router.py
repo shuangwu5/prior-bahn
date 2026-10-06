@@ -45,9 +45,7 @@ def timetable(conns: list[dict]) -> rc.Timetable:
         conns=conns,
         deps=[c["dep"] for c in conns],
         run_conns=run_conns,
-        stations=sorted(
-            {c["station"] for c in conns} | {c["next_station"] for c in conns}
-        ),
+        stations=sorted({c["station"] for c in conns} | {c["next_station"] for c in conns}),
     )
 
 
@@ -73,9 +71,7 @@ def test_hamburg_to_munich_has_no_detour() -> None:
     if not RAW.exists():
         pytest.skip(f"{rc.PATH} is not there")
     tt = rc.load_timetable(DAY.date(), str(RAW))
-    legs = rc.earliest_arrival(
-        tt, "Hamburg Hbf", "München Hbf", tt.day_start + timedelta(hours=8)
-    )
+    legs = rc.earliest_arrival(tt, "Hamburg Hbf", "München Hbf", tt.day_start + timedelta(hours=8))
     journey = rc.replay(tt, legs)
     # with one EVA code per name, this was 5 legs: an S-Bahn to Dammtor, and a detour
     # via Pasing to reach the S-Bahn platforms of München Hbf at 15:19
