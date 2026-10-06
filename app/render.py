@@ -23,11 +23,11 @@ def _top() -> str:
         for k, (label, chance) in LEVELS.items()
     )
     tip = (
-        "<b>How sure TabPFN is that you catch your next train</b>"
+        "<b>How likely you catch your next train</b>"
         f"{levels}"
-        f'<span class="lv">We assume you need at least {CHANGE_MIN} minutes to change '
-        "trains, and that the next train leaves with its typical delay. Canceled trains "
-        "are not included.</span>"
+        '<span class="lv">From the predicted delay of your train and the typical delay '
+        f"of the next one, with at least {CHANGE_MIN} minutes to change trains. Canceled "
+        "trains are not included.</span>"
         '<span class="lv">The big dot on a card shows its weakest transfer.</span>'
     )
     lead = (

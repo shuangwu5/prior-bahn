@@ -22,12 +22,15 @@ import polars as pl
 CHANGE_MIN = 2  # minutes needed to change trains, also used for the actual outcome
 # level: (label, range of the chance)
 LEVELS = {
-    1: ("very likely", "over 90%"),
-    2: ("likely", "75 to 90%"),
-    3: ("uncertain", "50 to 75%"),
+    1: ("almost sure", "97% or more"),
+    2: ("likely", "80 to 97%"),
+    3: ("risky", "50 to 80%"),
     4: ("unlikely", "below 50%"),
 }
-CUTS = {1: 0.9, 2: 0.75, 3: 0.5}  # the lowest chance of each level
+# the lowest chance of each level, chosen so that each color means what people expect:
+# green is only for transfers that almost never fail, yellow starts where about 1 in 5
+# fail
+CUTS = {1: 0.97, 2: 0.8, 3: 0.5}
 ROUTE = ["request_id", "route"]
 
 

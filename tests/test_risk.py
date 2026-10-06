@@ -62,8 +62,8 @@ def legs_with(q50: float, q80: float, q95: float) -> pl.DataFrame:
     ("q50", "q80", "q95", "level"),
     [
         # 10 min planned, 2 to change trains: 8 min of room
-        (1, 4, 8, 1),  # 8 is q95: 95%
-        (1, 8, 12, 2),  # 8 is q80: 80%
+        (1, 3, 5, 1),  # 8 is 3 min above q95: over 99%
+        (1, 4, 8, 2),  # 8 is q95: 95%
         (1, 12, 15, 3),  # 8 is between q50 and q80: about 69%
         (9, 12, 15, 4),  # 8 is below q50
     ],
@@ -96,9 +96,9 @@ def test_a_late_connecting_train_gives_more_time() -> None:
 
 
 def test_levels_cut_the_chance() -> None:
-    chance = pl.Series("c", [0.95, 0.9, 0.8, 0.75, 0.6, 0.3, None])
+    chance = pl.Series("c", [0.99, 0.97, 0.9, 0.8, 0.79, 0.5, 0.3, None])
     out = pl.DataFrame(chance).select(risk.level(pl.col("c")).alias("level"))
-    assert out["level"].to_list() == [1, 1, 2, 2, 3, 4, None]
+    assert out["level"].to_list() == [1, 1, 2, 2, 3, 3, 4, None]
 
 
 def test_routes_rank_by_arrival_then_transfers() -> None:
