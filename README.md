@@ -38,10 +38,12 @@ what actually happened.
    itself.
 4. **One call per search.** TabPFN fits on the context and predicts the arrival delay at
    every stop where you leave a train, as three numbers: median (q50), 80% and 95%.
-5. **Transfers.** Each transfer gets one of four levels (`priorbahn/risk.py`): does it still
-   leave 2 minutes to change trains if the incoming train is as late as its predicted 95%,
-   80% or 50% level? The connecting train is taken as on time (only 0.14% of departures
-   leave early).
+5. **Transfers.** Each transfer gets a chance that it works (`priorbahn/risk.py`): how
+   likely the incoming train arrives at least 2 minutes before the connecting train leaves.
+   The connecting train's typical delay comes from its last known delay, or from the same
+   train on past days (`carry_forward`, no extra TabPFN call). Canceled trains are not part
+   of the chance. Four levels cut the chance at 97, 80 and 50%, so that green means a
+   transfer that almost never fails.
 
 ## Results
 
@@ -77,19 +79,22 @@ search day known before "now", which XGBoost does not see.
 - **Trains not started yet:** no clear difference to the train's own history (test −0.07,
   95% range −0.32 to +0.18; validation +0.08).
 
-How often transfers actually held (2 minutes to change trains), by the level TabPFN gave
-them:
+How often transfers actually held (2 minutes to change trains, both trains running), by
+the level TabPFN gave them:
 
-| Level | Share of transfers | Held, validation | Held, test |
-|---|---|---|---|
-| Very likely | 43% | 91% | 93% |
-| Likely | 13% | 80% | 84% |
-| Uncertain | 20% | 69% | 62% |
-| Unlikely | 24% | 38% | 41% |
+| Level | Chance | Share (val / test) | Held, validation | Held, test |
+|---|---|---|---|---|
+| Almost sure | 97% or more | 46% / 45% | 99% | 99% |
+| Likely | 80 to 97% | 18% / 19% | 88% | 91% |
+| Risky | 50 to 80% | 18% / 20% | 66% | 58% |
+| Unlikely | below 50% | 18% / 16% | 39% | 39% |
 
-TabPFN puts more transfers into "very likely" than the baselines (43 to 45% against 38 to
-39%), and they hold a little more often (91 to 93% against 89 to 91%). Details and all
-experiments: `data/eval/README.md` (made by the evaluation).
+Brier score of the chance (the mean squared difference between the chance and the outcome;
+lower is better), validation / test: TabPFN **0.110 / 0.099**, XGBoost 0.111 / 0.105,
+`carry_forward` 0.114 / 0.112, `train_station` 0.122 / 0.125. In the test week TabPFN is
+clearly better than `carry_forward` and `train_station`. Against XGBoost there is no clear
+difference in either week. Details and all experiments: `data/eval/README.md` (made by the
+evaluation).
 
 ## Run it
 
@@ -133,7 +138,7 @@ uv run --no-sync python -m priorbahn.eval.run_requests validation tabpfn_14d_5k_
   --models arr --workers 4
 uv run --no-sync python -m priorbahn.eval.run_requests validation xgboost --models arr  # ~25 min
 uv run --no-sync python -m priorbahn.eval.run_requests validation report
-uv run --no-sync python -m priorbahn.eval.transfers validation         # transfer levels
+uv run --no-sync python -m priorbahn.eval.transfers validation         # transfer chances
 ```
 
 Use `test` instead of `validation` for the test week. The searches in the results were drawn
@@ -162,10 +167,13 @@ when the app is running at `APP_URL` (default `http://localhost:8502`).
 
 ## Limitations
 
-- Trains are treated as independent. On a bad network day, delays of the incoming and the
-  connecting train are linked, so the levels are less reliable then.
+- Trains are treated as independent, and the connecting train's delay is one number, not a
+  range. On a bad network day, the delays of both trains are linked, so the chances are less
+  reliable then.
 - TabPFN's 80% and 95% levels are a bit optimistic: 74% and 91% of arrivals stayed under
-  them. The held rates above already include this.
+  them. The transfer levels still held about as often as they claim.
+- Canceled trains are not part of the chance. In the evaluation, 6 to 14% of the transfers
+  had a canceled train.
 - A missed transfer is not turned into a later arrival. Routes with weak transfers show
   their arrival "if all transfers work".
 - The router is this project's own, built from the dataset's timetable. It does not use DB's
