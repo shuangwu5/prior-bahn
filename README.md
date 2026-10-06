@@ -55,6 +55,7 @@ better):
 | Same delays as all trains (`global`) | 3.39 | 3.63 | 3.10 |
 | This train at this station, past days (`train_station`) | 2.48 | 2.72 | 2.17 |
 | The delay stays the same (`carry_forward`) | 2.27 | 2.72 | 1.71 |
+| TabPFN-3.5 Fast | 2.23 | 2.77 | 1.56 |
 | XGBoost, one model per day (`xgboost`) | 2.17 | 2.70 | 1.52 |
 | **TabPFN-3.5** | **2.13** | **2.65** | **1.49** |
 
