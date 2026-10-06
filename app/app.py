@@ -8,7 +8,7 @@ routes. A switch on the page reveals what actually happened that day. The cards 
 app/render.py.
 
 Run from the repo root: uv run --no-sync streamlit run app/app.py
-To use the Prior Labs API instead of this machine, add: -- --backend api
+It uses the Prior Labs API. To run TabPFN on this machine instead, add: -- --backend local
 """
 
 import argparse
@@ -43,7 +43,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument(
     "--backend",
     choices=["local", "api"],
-    default="local",
+    default="api",
     help="run TabPFN on this machine, or on the Prior Labs API (costs credits)",
 )
 LOCAL = parser.parse_args().backend == "local"
@@ -88,7 +88,6 @@ def plan(
         return [], 0.0
     legs = pl.DataFrame(rq.legs_frame(journeys, request_id=0))
     stops = pl.scan_parquet(STOPS)
-    load_token()
     started = clock.perf_counter()
     pred = predict_arrivals(
         stops,
@@ -208,6 +207,24 @@ with main:
         f"{DATA_DAYS[1]:%-d %B %Y}, ranked by earlier arrival, then fewer transfers. "
         "Delays are predicted with TabPFN from what was known at the chosen time."
     )
+    if not Path(STOPS).exists():
+        st.error(
+            f"`{STOPS}` is missing. Build it first: "
+            "`uv run --no-sync python -m priorbahn.data.prep` (see the README)."
+        )
+        st.stop()
+    load_token()
+    if not LOCAL:
+        import tabpfn_client
+
+        try:  # connects with TABPFN_TOKEN, fails on a missing or invalid token
+            tabpfn_client.init()
+        except RuntimeError as error:
+            st.error(
+                "Cannot use the Prior Labs API. Check `TABPFN_TOKEN` in `.env`."
+                f"\n\n{error}"
+            )
+            st.stop()
 
     with st.form("query"):
         col_from, col_to = st.columns(2)
@@ -228,7 +245,9 @@ with main:
         now_time = col_time.time_input(
             "Now (earliest departure)", value=time(8, 0), step=timedelta(minutes=5)
         )
-        model_name = st.radio("Model", list(MODELS), horizontal=True)
+        model_name = st.radio(
+            f"Model ({'local' if LOCAL else 'API'})", list(MODELS), horizontal=True
+        )
         submitted = st.form_submit_button("Find routes", type="primary")
 
     if submitted:
@@ -239,7 +258,7 @@ with main:
         if src_name == dst_name:
             st.warning("Pick two different stations.")
             st.stop()
-        with st.spinner("Predicting delays with TabPFN..."):
+        with st.spinner("Predicting delays..."):
             try:
                 routes, seconds = plan(
                     day, src_name, dst_name, now_time, MODELS[model_name]

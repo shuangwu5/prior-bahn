@@ -24,9 +24,10 @@ ROOT = Path(__file__).resolve().parents[2]
 def load_token() -> None:
     """
     Read the Prior Labs key from .env. Both packages read it from TABPFN_TOKEN.
+    Keep TABPFN_TOKEN if it is set, else fall back to PRIORLABS_API_KEY, else "".
     """
     load_dotenv(ROOT / ".env", override=True)
-    os.environ["TABPFN_TOKEN"] = os.environ["PRIORLABS_API_KEY"]
+    os.environ.setdefault("TABPFN_TOKEN", os.environ.get("PRIORLABS_API_KEY", ""))
 
 
 def regressor(

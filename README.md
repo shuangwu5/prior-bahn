@@ -96,7 +96,7 @@ experiments: `data/eval/README.md` (made by the evaluation).
 Needs [uv](https://docs.astral.sh/uv/) and about 1 GB of disk for the data.
 
 ```bash
-uv sync
+uv sync --frozen
 
 # the September 2026 file of the dataset (CC BY 4.0)
 uv run --no-sync hf download piebro/deutsche-bahn-data --repo-type dataset \
@@ -109,9 +109,10 @@ uv run --no-sync python -m priorbahn.data.prep
 uv run --no-sync streamlit run app/app.py
 ```
 
-The app runs TabPFN on your machine. The first search downloads the model weights. To use the Prior Labs API instead, put your key in
-`.env` as `PRIORLABS_API_KEY=...` and start the app with
-`uv run --no-sync streamlit run app/app.py -- --backend api`.
+The app uses the Prior Labs API (costs credits). Put your key in `.env` as
+`TABPFN_TOKEN=...`. To run TabPFN on your machine instead, start the app with
+`uv run --no-sync streamlit run app/app.py -- --backend local`. The first local search
+downloads the model weights.
 
 In the app, pick a day between September 15 and 30, two stations and "now". Each
 route shows its planned times with the expected (median) arrival delay, a timeline with a
