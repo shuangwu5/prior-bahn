@@ -10,9 +10,9 @@ train's typical (median) departure delay. The connecting train's delay comes fro
 The four levels are cut points on the chance (LEVELS and CUTS). In the validation and
 test weeks, the transfers of each level held about as often as its range says.
 
-Routes are ranked by the arrival time they reach with 80% certainty (planned arrival plus
-the q80 arrival delay of the last leg), then by their number of transfers. The weakest
-transfer level is shown next to each route, but does not change the order.
+Routes are ranked by their planned arrival, then by their number of transfers, so the
+order matches the times on the cards. The predicted delays and the weakest transfer level
+are shown next to each route, but do not change the order.
 """
 
 import math
@@ -165,7 +165,7 @@ def routes(legs: pl.DataFrame) -> pl.DataFrame:
             pl.col("transfers").fill_null(0),
             pl.col("weakest").fill_null(1),
         )
-        .sort("request_id", "arrival_q80", "transfers")
+        .sort("request_id", "planned_arrival", "transfers")
         .with_columns(rank=pl.int_range(1, pl.len() + 1).over("request_id"))
     )
 

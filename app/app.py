@@ -4,8 +4,8 @@ Streamlit app: plan a train journey and see how reliable each route is.
 The user picks a day of the data, two stations and "now" (also the earliest departure).
 The app finds up to N routes, predicts the arrival delay of every leg with TabPFN from
 what was known at "now", gives each transfer a chance and a level (priorbahn/risk.py,
-with the connecting train's typical delay from the `carry_forward` baseline) and ranks the
-routes. A switch on the page reveals what actually happened that day. The cards are drawn by
+with the connecting train's typical delay from the `carry_forward` baseline) and sorts the
+routes by planned arrival. A switch on the page reveals what actually happened that day. The cards are drawn by
 app/render.py.
 
 Run from the repo root: uv run --no-sync streamlit run app/app.py
@@ -225,7 +225,7 @@ with main:
     st.title("Prior Bahn", anchor=False)
     st.caption(
         f"Train-only routes on the timetable from {DATA_DAYS[0]:%-d} to "
-        f"{DATA_DAYS[1]:%-d %B %Y}, ranked by earlier arrival, then fewer transfers. "
+        f"{DATA_DAYS[1]:%-d %B %Y}, sorted by planned arrival, then fewer transfers. "
         "Delays are predicted with TabPFN from what was known at the chosen time."
     )
     if not Path(STOPS).exists():

@@ -2,7 +2,7 @@
 
 Plan a train trip in Germany and see how likely each transfer works. The app predicts the
 delay of every train on the candidate routes with TabPFN-3.5, from what was known at the
-moment you ask, and ranks the routes by when they get you there.
+moment you ask, and sorts the routes by their planned arrival.
 
 Built for the Prior Labs TabPFN-3.5 Hackathon, on Deutsche Bahn data from September 2026.
 

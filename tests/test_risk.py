@@ -102,8 +102,8 @@ def test_levels_cut_the_chance() -> None:
 
 
 def test_routes_rank_by_arrival_then_transfers() -> None:
-    # route 0 arrives earlier at q80 (15:02 against 15:07), so it comes first despite its
-    # transfer; the transfer level does not change the order
+    # route 0 is planned to arrive earlier (15:00 against 15:05), so it comes first despite
+    # its transfer; the transfer level does not change the order
     for q in [(9, 12, 15), (1, 4, 8)]:
         ranked = risk.routes(legs_with(*q))
         assert ranked.select("route", "transfers", "rank").rows() == [
@@ -113,23 +113,16 @@ def test_routes_rank_by_arrival_then_transfers() -> None:
 
 
 def test_routes_arriving_at_the_same_time_rank_by_transfers() -> None:
-    # route 1 (direct) is delayed to the same 80% arrival as route 0: fewer transfers win
-    pred = pl.DataFrame(
-        {
-            "request_id": [1, 1, 1],
-            "run_id": ["r1", "r2", "r3"],
-            "stop_num": [5, 9, 7],
-            "q50": [1.0, 1.0, -4.0],
-            "q80": [2.0, 2.0, -3.0],
-            "q95": [4.0, 4.0, 0.0],
-        }
+    # route 1 (direct) is planned to arrive at 15:00 like route 0: fewer transfers win
+    legs = legs_with(1, 2, 4).with_columns(
+        pl.when(pl.col("route") == 1).then(at(15)).otherwise(pl.col("arr")).alias("arr")
     )
-    ranked = risk.routes(risk.with_arrival_delays(LEGS, pred))
+    ranked = risk.routes(legs)
     assert ranked.select("route", "rank").rows() == [(1, 1), (0, 2)]
 
 
-def test_routes_with_the_same_transfers_rank_by_arrival() -> None:
-    # two direct routes: the one arriving later is planned to arrive first, but its
+def test_routes_with_the_same_transfers_rank_by_planned_arrival() -> None:
+    # two direct routes: the one planned to arrive first comes first, even though its
     # predicted delay makes it 10 min later at the 80% level
     legs = pl.DataFrame(
         [
@@ -150,7 +143,7 @@ def test_routes_with_the_same_transfers_rank_by_arrival() -> None:
         }
     )
     ranked = risk.routes(risk.with_arrival_delays(legs, pred))
-    assert ranked.select("route", "rank").rows() == [(1, 1), (0, 2)]
+    assert ranked.select("route", "rank").rows() == [(0, 1), (1, 2)]
 
 
 def test_held_needs_the_change_time_and_no_cancellation() -> None:
