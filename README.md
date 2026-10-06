@@ -10,7 +10,7 @@ Built for the Prior Labs TabPFN-3.5 Hackathon, on Deutsche Bahn data from Septem
 > a hackathon, to show a possible use case of TabPFN. The code has not been reviewed in depth.
 > Do not rely on it to plan real trips.
 
-https://github.com/user-attachments/assets/74879025-5650-472d-a24a-15401ea88af8
+https://github.com/user-attachments/assets/8088d23a-8d53-445e-9851-77d7b94acf13
 
 ## The question
 
