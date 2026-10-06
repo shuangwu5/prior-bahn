@@ -158,6 +158,8 @@ def plan(
             outgoing = route_legs[t["leg"] + 1]["stops"][0]
             route_legs[t["leg"]]["transfer_after"] = {
                 "level": t["level"],
+                "chance": t["chance"],
+                "next": route_legs[t["leg"] + 1]["short"],
                 "planned_min": int((t["next_dep"] - t["arr"]).total_seconds() // 60),
                 "wait_min": t["wait_min"],
                 "held": transfer_held(t["arr"], incoming, t["next_dep"], outgoing),

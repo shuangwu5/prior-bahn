@@ -7,7 +7,7 @@ from html import escape
 from itertools import pairwise
 from pathlib import Path
 
-from priorbahn.risk import CHANGE_MIN, LEVELS
+from priorbahn.risk import CHANGE_MIN, CUTS, LEVELS
 
 CSS = f"<style>\n{Path(__file__).with_name('route_cards.css').read_text()}</style>"
 
@@ -44,6 +44,35 @@ def _top() -> str:
         '<label class="reveal"><input type="checkbox" id="rr-reveal"> '
         "Show what actually happened</label></div>"
     )
+
+
+def _chance(p: float | None) -> str:
+    """
+    A chance as text, rounded down to 5% so that it stays inside its level's range.
+    """
+    if p is None:
+        return "no prediction"
+    if p >= CUTS[1]:
+        return f"{CUTS[1]:.0%} or more"
+    if p < 0.05:
+        return "under 5%"
+    return f"{int(p * 20) * 5}%"
+
+
+def _dot(level: int | None, hint: str | None = None) -> str:
+    """
+    A level dot; with `hint`, a tooltip shows it on hover or focus.
+    """
+    if hint is None:
+        return f'<i class="dot l{level or 0}"></i>'
+    return (
+        f'<i class="dot l{level or 0} hint" tabindex="0">'
+        f'<span class="hint-text">{escape(hint)}</span></i>'
+    )
+
+
+def _transfer_hint(t: dict) -> str:
+    return f"{_chance(t['chance'])} chance to catch {t['next']}"
 
 
 def _time(t: datetime | None) -> str:
@@ -262,7 +291,7 @@ def _leg(leg: dict) -> str:
         curve = _curve(leg, t["wait_min"], actual) if has_curve else ""
         html += (
             f'<div class="xfer"><div class="t"></div><div class="rail">'
-            f'<i class="dot l{t["level"] or 0}"></i></div>'
+            f"{_dot(t['level'], _transfer_hint(t))}</div>"
             f'<div class="n">Transfer, {t["planned_min"]} min{outcome}{curve}'
             "</div></div>"
         )
@@ -281,13 +310,25 @@ def card(route: dict) -> str:
         if t is not None:
             bar.append(
                 f'<div class="wait" style="flex:{max(t["planned_min"], 1)}">'
-                f'<i class="dot l{t["level"] or 0}"></i></div>'
+                f"{_dot(t['level'], _transfer_hint(t))}</div>"
             )
     n = len(legs) - 1
     minutes = int(
         (route["planned_arrival"] - route["planned_departure"]).total_seconds() // 60
     )
     transfers = "Direct" if n == 0 else f"{n} transfer" + ("s" if n > 1 else "")
+    chances = [
+        leg["transfer_after"]["chance"]
+        for leg in legs
+        if leg["transfer_after"] is not None
+        and leg["transfer_after"]["chance"] is not None
+    ]
+    if n == 0:
+        head_hint = "Direct, no transfer to miss"
+    elif chances:
+        head_hint = f"Weakest transfer: {_chance(min(chances))}"
+    else:
+        head_hint = None
     q50 = legs[-1]["q50"]
     typical = (
         f'<span class="typical">(typical <b>{round(max(q50, 0)):+d}</b>)</span>'
@@ -296,7 +337,7 @@ def card(route: dict) -> str:
     )
     return (
         '<div class="route"><div class="head">'
-        f'<i class="dot l{route["weakest"]}"></i>'
+        f"{_dot(route['weakest'], head_hint)}"
         f'<span class="times">{_time(route["planned_departure"])} – '
         f"{_time(route['planned_arrival'])}</span>{typical}"
         f'<span class="meta"><span>{minutes // 60}h {minutes % 60:02d}min</span>'
