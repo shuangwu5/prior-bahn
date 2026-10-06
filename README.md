@@ -37,7 +37,7 @@ what actually happened.
    context rows look like the question. A train that has not started predicts the delay
    itself.
 4. **One call per search.** TabPFN fits on the context and predicts the arrival delay at
-   every stop where you leave a train, as three numbers: expected (q50), 80% and 95%.
+   every stop where you leave a train, as three numbers: median (q50), 80% and 95%.
 5. **Transfers.** Each transfer gets one of four levels (`priorbahn/risk.py`): does it still
    leave 2 minutes to change trains if the incoming train is as late as its predicted 95%,
    80% or 50% level? The connecting train is taken as on time (only 0.14% of departures
@@ -115,7 +115,7 @@ The app uses the Prior Labs API (costs credits). Put your key in `.env` as
 downloads the model weights.
 
 In the app, pick a day between September 15 and 30, two stations and "now". Each
-route shows its planned times with the expected (median) arrival delay, a timeline with a
+route shows its planned times with the typical (median) arrival delay, a timeline with a
 colored dot per transfer, and the stops with their planned times. In the stop list, a curve
 shows the predicted arrival delay at each transfer and at the destination, with the median,
 80% and 95% marked. Before a transfer it is red where the train is too late to change.

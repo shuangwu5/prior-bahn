@@ -19,8 +19,8 @@
 .rr .times { font-size:24px; font-weight:800; font-variant-numeric:tabular-nums; }
 .rr .meta { color:var(--muted); font-size:16px; }
 .rr .meta span + span::before { content:"|"; margin:0 10px; color:var(--line); }
-.rr .exp { color:var(--muted); font-size:16px; margin-left:-4px; }
-.rr .exp b { color:var(--ink); }
+.rr .typical { color:var(--muted); font-size:16px; margin-left:-4px; }
+.rr .typical b { color:var(--ink); }
 .rr .track { display:flex; align-items:center; height:30px; margin-top:16px; }
 .rr .leg { height:24px; border-radius:6px; background:var(--train); color:var(--train-ink); font-size:12px; font-weight:700;
   display:flex; align-items:center; justify-content:center; overflow:hidden; white-space:nowrap; padding:0 6px; min-width:28px; }

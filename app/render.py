@@ -113,7 +113,7 @@ def _curve(leg: dict, room: float | None, actual: int | None) -> str:
     (`room` None) it has one color. `actual` (the real delay, None if unknown) is marked
     only when the switch is on. Drawn with clip-path, because st.html removes SVG.
     """
-    # an early arrival is drawn as on time (and "expected" is shown as at least +0): it makes the transfer just the same, and
+    # an early arrival is drawn as on time (and "typical" is shown as at least +0): it makes the transfer just the same, and
     # TabPFN's smooth curve spreads the many on-time arrivals below 0 (15% early where
     # 2.4% of all arrivals in the data are early)
     qs = [(q, max(d, 0.0)) for q, d in leg["quantiles"]]
@@ -246,7 +246,7 @@ def _leg(leg: dict) -> str:
         html += "</div></div>"
     t = leg["transfer_after"]
     pred = (
-        f'<div class="pred">expected <b>{round(max(leg["q50"], 0)):+d}</b></div>'
+        f'<div class="pred">typical <b>{round(max(leg["q50"], 0)):+d}</b></div>'
         if leg["q50"] is not None
         else ""
     )
@@ -293,8 +293,8 @@ def card(route: dict) -> str:
     )
     transfers = "Direct" if n == 0 else f"{n} transfer" + ("s" if n > 1 else "")
     q50 = legs[-1]["q50"]
-    expected = (
-        f'<span class="exp">(expected <b>{round(max(q50, 0)):+d}</b>)</span>'
+    typical = (
+        f'<span class="typical">(typical <b>{round(max(q50, 0)):+d}</b>)</span>'
         if q50 is not None
         else ""
     )
@@ -302,7 +302,7 @@ def card(route: dict) -> str:
         '<div class="route"><div class="head">'
         f'<i class="dot l{route["weakest"]}"></i>'
         f'<span class="times">{_time(route["planned_departure"])} – '
-        f"{_time(route['planned_arrival'])}</span>{expected}"
+        f"{_time(route['planned_arrival'])}</span>{typical}"
         f'<span class="meta"><span>{minutes // 60}h {minutes % 60:02d}min</span>'
         f"<span>{transfers}</span></span></div>"
         f'<div class="track">{"".join(bar)}</div>'
